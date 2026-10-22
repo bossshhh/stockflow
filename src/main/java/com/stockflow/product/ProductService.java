@@ -7,6 +7,7 @@ import java.util.Set;
 import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -28,10 +29,12 @@ public class ProductService {
     static final Set<String> SORTABLE_FIELDS = Set.of("id", "sku", "name", "price", "createdAt", "updatedAt");
 
     private final ProductRepository productRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
-    public ProductService(ProductRepository productRepository, Clock clock) {
+    public ProductService(ProductRepository productRepository, ApplicationEventPublisher eventPublisher, Clock clock) {
         this.productRepository = productRepository;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
@@ -44,11 +47,10 @@ public class ProductService {
         }
         Product product = new Product(sku, request.name().strip(), normalizeDescription(request.description()),
                 request.price(), clock.instant());
+        Product saved;
         try {
             // Flush now so a constraint violation surfaces here, where we can translate it.
-            Product saved = productRepository.saveAndFlush(product);
-            log.info("Created product id={} sku={}", saved.getId(), saved.getSku());
-            return ProductResponse.from(saved);
+            saved = productRepository.saveAndFlush(product);
         } catch (DataIntegrityViolationException ex) {
             // Race: another transaction inserted the same SKU between our check and our insert.
             if (isSkuUniqueViolation(ex)) {
@@ -56,6 +58,10 @@ public class ProductService {
             }
             throw ex;
         }
+        // Listeners run synchronously in this transaction: if they fail, the product is rolled back too.
+        eventPublisher.publishEvent(new ProductCreatedEvent(saved.getId()));
+        log.info("Created product id={} sku={}", saved.getId(), saved.getSku());
+        return ProductResponse.from(saved);
     }
 
     @Transactional(readOnly = true)

@@ -16,7 +16,9 @@ public enum ErrorCode {
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR),
 
     PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND),
-    DUPLICATE_SKU(HttpStatus.CONFLICT);
+    DUPLICATE_SKU(HttpStatus.CONFLICT),
+
+    INSUFFICIENT_STOCK(HttpStatus.CONFLICT);
 
     private final HttpStatus status;
 

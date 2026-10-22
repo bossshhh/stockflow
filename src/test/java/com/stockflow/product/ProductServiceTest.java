@@ -20,9 +20,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.stockflow.common.exception.InvalidRequestParameterException;
 import com.stockflow.product.dto.CreateProductRequest;
@@ -37,21 +39,25 @@ class ProductServiceTest {
     @Mock
     private ProductRepository productRepository;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private ProductService productService;
 
     @BeforeEach
     void setUp() {
-        productService = new ProductService(productRepository, Clock.fixed(NOW, ZoneOffset.UTC));
+        productService = new ProductService(productRepository, eventPublisher, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
     void createNormalizesInputAndStampsTimes() {
         when(productRepository.existsBySku("ABC-123")).thenReturn(false);
-        when(productRepository.saveAndFlush(any(Product.class))).thenAnswer(call -> call.getArgument(0));
+        when(productRepository.saveAndFlush(any(Product.class))).thenAnswer(call -> withDatabaseId(call.getArgument(0)));
 
         ProductResponse response = productService.create(
                 new CreateProductRequest("abc-123", "  Widget  ", "   ", new BigDecimal("9.5")));
 
+        assertThat(response.id()).isEqualTo(1L);
         assertThat(response.sku()).isEqualTo("ABC-123");
         assertThat(response.name()).isEqualTo("Widget");
         assertThat(response.description()).isNull();
@@ -59,6 +65,7 @@ class ProductServiceTest {
         assertThat(response.active()).isTrue();
         assertThat(response.createdAt()).isEqualTo(NOW);
         assertThat(response.updatedAt()).isEqualTo(NOW);
+        verify(eventPublisher).publishEvent(new ProductCreatedEvent(1L));
     }
 
     @Test
@@ -69,6 +76,7 @@ class ProductServiceTest {
                 new CreateProductRequest("abc-123", "Widget", null, BigDecimal.ONE)))
                 .isInstanceOf(DuplicateSkuException.class);
         verify(productRepository, never()).saveAndFlush(any());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
@@ -137,6 +145,12 @@ class ProductServiceTest {
 
         assertThat(product.isActive()).isFalse();
         assertThat(product.getUpdatedAt()).isEqualTo(created);
+    }
+
+    /** Simulates the database assigning the identity column on insert. */
+    private static Product withDatabaseId(Product product) {
+        ReflectionTestUtils.setField(product, "id", 1L);
+        return product;
     }
 
     private static DataIntegrityViolationException integrityViolation(String constraintName) {

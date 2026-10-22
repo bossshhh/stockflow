@@ -11,3 +11,7 @@ target/
 
 # OS
 .DS_Store
+.classpath
+.project
+.settings/
+.factorypath
