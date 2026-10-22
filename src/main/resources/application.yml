@@ -1,0 +1,46 @@
+# Settings shared by every profile. Connection details live in the profile files.
+spring:
+  application:
+    name: stockflow
+  profiles:
+    default: dev
+  datasource:
+    hikari:
+      # Postgres handles a small pool best; most requests are short transactions.
+      # Raise it only after load testing shows threads waiting for connections.
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      connection-timeout: 5000
+  jpa:
+    open-in-view: false
+    show-sql: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    locations: classpath:db/migration
+  data:
+    web:
+      pageable:
+        # Caps ?size= so one request cannot pull the whole table.
+        max-page-size: 100
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+management:
+  server:
+    port: ${MANAGEMENT_PORT:8081}
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

@@ -1,0 +1,9 @@
+# Local development against the docker-compose Postgres.
+# The .env file (git-ignored) is read by both docker compose and Spring, so the password lives in one place.
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:stockflow}
+    username: ${DB_USERNAME:stockflow}
+    password: ${DB_PASSWORD}

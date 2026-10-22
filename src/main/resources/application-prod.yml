@@ -1,0 +1,6 @@
+# Production: everything comes from the environment, with no defaults to fall back on.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
