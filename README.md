@@ -82,6 +82,13 @@ Run all tests (Docker must be running, Testcontainers starts PostgreSQL):
 ./mvnw verify
 ```
 
+End-to-end smoke test against the running system (64 checks over real HTTP, every role, including a
+live race of 10 parallel orders for the last unit):
+
+```bash
+scripts/smoke-test.sh            # defaults to http://localhost:8080
+```
+
 ## API overview
 
 | Area | Endpoints | Who |
