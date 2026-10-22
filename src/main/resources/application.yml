@@ -46,6 +46,10 @@ stockflow:
       secret: ${JWT_SECRET}
       ttl: ${JWT_TTL:15m}
       issuer: stockflow
+    refresh:
+      ttl: ${REFRESH_TTL:7d}
+      # HTTPS-only cookie. Set REFRESH_COOKIE_SECURE=false only for local plain-http setups.
+      cookie-secure: ${REFRESH_COOKIE_SECURE:true}
     # BCrypt cost: each +1 doubles hashing time. 12 is about 250 ms per hash, which slows brute force.
     bcrypt-strength: ${BCRYPT_STRENGTH:12}
     cors:

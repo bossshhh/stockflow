@@ -23,10 +23,11 @@ customers order the last unit at the same moment.
   the millisecond with an injectable clock).
 - **Full audit trail.** Every stock change writes a movement row (type, delta, resulting levels,
   order id) in the same transaction.
-- **Security.** JWT access tokens validated by Spring's OAuth2 Resource Server, BCrypt, role-based
+- **Security.** Short-lived JWT access tokens plus rotating refresh tokens in an HttpOnly cookie with
+  theft detection (a replayed token revokes the whole session). BCrypt, role-based
   access (customer / staff / admin) plus ownership checks: customers only ever see their own orders
   (and get 404, not 403, for others').
-- **108 automated tests** (unit, integration against real PostgreSQL, concurrency, security), run on
+- **128 automated tests** (unit, integration against real PostgreSQL, concurrency, security), run on
   every push by GitHub Actions.
 
 ## Architecture
@@ -82,7 +83,7 @@ Run all tests (Docker must be running, Testcontainers starts PostgreSQL):
 ./mvnw verify
 ```
 
-End-to-end smoke test against the running system (64 checks over real HTTP, every role, including a
+End-to-end smoke test against the running system (76 checks over real HTTP, every role, including a
 live race of 10 parallel orders for the last unit):
 
 ```bash
@@ -93,7 +94,8 @@ scripts/smoke-test.sh            # defaults to http://localhost:8080
 
 | Area | Endpoints | Who |
 |---|---|---|
-| Auth | `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `GET /api/v1/auth/me` | public / signed in |
+| Auth | `POST /api/v1/auth/register`, `/login`, `/refresh`, `/logout`, `GET /api/v1/auth/me` | public / signed in |
+| Catalog | `GET /api/v1/catalog?q=`, `GET /api/v1/catalog/{id}` (active products, `inStock` flag, no counts) | public |
 | Products | `GET/POST /api/v1/products`, `GET/PUT/DELETE /api/v1/products/{id}` | read: all; write: staff |
 | Inventory | `GET /api/v1/inventory`, `GET /{productId}`, `POST /{productId}/adjustments`, `GET /{productId}/movements`, `GET /low-stock`, `GET /valuation` | staff |
 | Orders | `POST /api/v1/orders`, `GET /api/v1/orders` (search), `GET /{id}`, `POST /{id}/confirm`, `POST /{id}/cancel`, `GET /summary` | customers: own orders; staff: all |
@@ -127,7 +129,6 @@ with answers (concurrency, transactions, indexing, JWT) are in [`docs/QUESTIONS.
 - [x] Products, inventory, orders, search and reports
 - [x] Security: JWT, roles, ownership
 - [x] CI, Docker image, Docker Compose
-- [ ] Hardening: idempotency keys, lock timeouts, login rate limiting, token revocation
-- [ ] Load test with measured throughput
-- [ ] Web UI
-- [ ] Multiple warehouses
+- [x] Refresh tokens and public catalog for the UI
+- [ ] Web UI (React + TypeScript), in progress
+- [ ] Hardening, load test, observability, audit, multiple warehouses, deployment: see [`docs/ROADMAP.md`](docs/ROADMAP.md)

@@ -213,6 +213,38 @@ check "unknown origin is rejected" "403" \
   "$(curl -s -o /dev/null -w "%{http_code}" -X OPTIONS "$API/products" -H 'Origin: https://evil.example' \
      -H 'Access-Control-Request-Method: GET')"
 
+echo; echo "11. Public catalog"
+request GET "$API/catalog?q=last+unit&size=100"
+check "anonymous can browse the catalog" "200" "$STATUS"
+check "sold-out product shows inStock=false" "false" \
+  "$(echo "$BODY" | jq -r --argjson id "$P2" '.content[] | select(.id == $id) | .inStock')"
+check "catalog never shows stock counts" "null" "$(echo "$BODY" | jq -r '.content[0].onHand')"
+request GET "$API/catalog/$P1"
+check "deactivated product is hidden from the catalog" "404" "$STATUS"
+check "/ redirects to Swagger" "302 /swagger-ui.html" \
+  "$(curl -s -o /dev/null -w "%{http_code} %{redirect_url}" "$BASE/" | sed "s#$BASE##")"
+
+echo; echo "12. Session: refresh cookie, rotation, logout"
+JAR="$(mktemp)"
+curl -s -o /dev/null -c "$JAR" -X POST "$API/auth/login" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$CUST_A_EMAIL\",\"password\":\"$PASSWORD\"}"
+check "login stores an HttpOnly refresh cookie" "1" "$(grep -c '^#HttpOnly_.*stockflow_refresh' "$JAR")"
+FIRST_COOKIE="$(awk '/stockflow_refresh/ {print $7}' "$JAR")"
+check "refresh with the cookie -> new access token" "200" \
+  "$(curl -s -o /dev/null -w "%{http_code}" -b "$JAR" -c "$JAR" -X POST "$API/auth/refresh")"
+check "refresh rotated the cookie" "true" \
+  "$([[ "$(awk '/stockflow_refresh/ {print $7}' "$JAR")" != "$FIRST_COOKIE" ]] && echo true || echo false)"
+check "replaying the old cookie -> 401 (theft detected)" "401" \
+  "$(curl -s -o /dev/null -w "%{http_code}" -b "stockflow_refresh=$FIRST_COOKIE" -X POST "$API/auth/refresh")"
+check "...which also ended the legitimate session" "401" \
+  "$(curl -s -o /dev/null -w "%{http_code}" -b "$JAR" -X POST "$API/auth/refresh")"
+curl -s -o /dev/null -c "$JAR" -X POST "$API/auth/login" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$CUST_A_EMAIL\",\"password\":\"$PASSWORD\"}"
+check "logout -> 204" "204" "$(curl -s -o /dev/null -w "%{http_code}" -b "$JAR" -X POST "$API/auth/logout")"
+check "refresh after logout -> 401" "401" \
+  "$(curl -s -o /dev/null -w "%{http_code}" -b "$JAR" -X POST "$API/auth/refresh")"
+rm -f "$JAR"
+
 echo
 TOTAL=$((PASS + FAIL))
 if [[ $FAIL -eq 0 ]]; then

@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
+import com.stockflow.inventory.dto.CatalogItemResponse;
 import com.stockflow.inventory.dto.InventoryResponse;
 import com.stockflow.inventory.dto.InventoryValuationResponse;
 
@@ -27,6 +28,23 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
                 i.productId, p.sku, p.name, i.onHand, i.reserved, i.onHand - i.reserved, i.updatedAt)
             FROM Inventory i JOIN Product p ON p.id = i.productId
             """;
+
+    /** Active products with an in-stock flag. FROM Product first, so client sorts resolve to p.name / p.price. */
+    String CATALOG_SELECT = """
+            SELECT new com.stockflow.inventory.dto.CatalogItemResponse(
+                p.id, p.sku, p.name, p.description, p.price,
+                CASE WHEN i.onHand - i.reserved > 0 THEN true ELSE false END)
+            FROM Product p JOIN Inventory i ON i.productId = p.id
+            WHERE p.active = true
+            """;
+
+    String CATALOG_COUNT = """
+            SELECT count(p) FROM Product p JOIN Inventory i ON i.productId = p.id
+            WHERE p.active = true
+            """;
+
+    /** Case-insensitive name search. The pattern's own % and _ must already be escaped with a backslash. */
+    String NAME_MATCHES = "AND lower(p.name) LIKE :namePattern ESCAPE '\\' ";
 
     @Modifying(flushAutomatically = true)
     @Query(value = "INSERT INTO inventory (product_id, on_hand, reserved, updated_at) VALUES (:productId, 0, 0, :now)",
@@ -74,6 +92,15 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
                     WHERE p.active = true AND i.onHand - i.reserved <= :threshold
                     """)
     Page<InventoryResponse> findLowStock(int threshold, Pageable pageable);
+
+    @Query(value = CATALOG_SELECT, countQuery = CATALOG_COUNT)
+    Page<CatalogItemResponse> findCatalog(Pageable pageable);
+
+    @Query(value = CATALOG_SELECT + NAME_MATCHES, countQuery = CATALOG_COUNT + NAME_MATCHES)
+    Page<CatalogItemResponse> findCatalogByName(String namePattern, Pageable pageable);
+
+    @Query(CATALOG_SELECT + "AND p.id = :productId")
+    Optional<CatalogItemResponse> findCatalogItem(long productId);
 
     /** Totals computed by the database in one aggregate query; no rows are loaded into Java. */
     @Query("""

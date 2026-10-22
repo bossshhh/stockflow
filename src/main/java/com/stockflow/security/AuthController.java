@@ -1,11 +1,15 @@
 package com.stockflow.security;
 
+import java.time.Clock;
+
 import jakarta.validation.Valid;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -13,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.stockflow.security.dto.LoginRequest;
@@ -23,7 +28,7 @@ import com.stockflow.user.dto.RegisterRequest;
 import com.stockflow.user.dto.UserResponse;
 
 @RestController
-@Tag(name = "Auth", description = "Register, log in, and see who you are")
+@Tag(name = "Auth", description = "Register, log in, refresh the session, log out, and see who you are")
 @RequestMapping(AuthController.BASE_PATH)
 public class AuthController {
 
@@ -31,10 +36,15 @@ public class AuthController {
 
     private final AuthService authService;
     private final UserService userService;
+    private final RefreshTokenCookies refreshTokenCookies;
+    private final Clock clock;
 
-    public AuthController(AuthService authService, UserService userService) {
+    public AuthController(AuthService authService, UserService userService, RefreshTokenCookies refreshTokenCookies,
+                          Clock clock) {
         this.authService = authService;
         this.userService = userService;
+        this.refreshTokenCookies = refreshTokenCookies;
+        this.clock = clock;
     }
 
     @Operation(summary = "Create a CUSTOMER account (password: 12-72 characters)")
@@ -43,15 +53,42 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.register(request));
     }
 
-    @Operation(summary = "Log in. Returns an access token: click 'Authorize' in Swagger and paste it")
+    @Operation(summary = "Log in. Returns an access token (paste it into 'Authorize' in Swagger) and sets the "
+            + "refresh token as an HttpOnly cookie")
     @PostMapping("/login")
     public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ResponseEntity.ok(authService.login(request));
+        return withSessionCookie(authService.login(request));
+    }
+
+    @Operation(summary = "New access token from the refresh token cookie. The cookie is rotated on every use")
+    @PostMapping("/refresh")
+    public ResponseEntity<TokenResponse> refresh(
+            @Parameter(hidden = true) @CookieValue(name = RefreshTokenCookies.COOKIE_NAME, required = false)
+            String refreshToken) {
+        return withSessionCookie(authService.refresh(refreshToken));
+    }
+
+    @Operation(summary = "Log out: revokes this session's refresh tokens and deletes the cookie")
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(
+            @Parameter(hidden = true) @CookieValue(name = RefreshTokenCookies.COOKIE_NAME, required = false)
+            String refreshToken) {
+        authService.logout(refreshToken);
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, refreshTokenCookies.clear().toString())
+                .build();
     }
 
     @Operation(summary = "The account the current token belongs to")
     @GetMapping("/me")
     public ResponseEntity<UserResponse> me(@AuthenticationPrincipal Jwt jwt) {
         return ResponseEntity.ok(userService.getById(CurrentUser.from(jwt).id()));
+    }
+
+    private ResponseEntity<TokenResponse> withSessionCookie(AuthSession session) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE,
+                        refreshTokenCookies.create(session.refreshToken(), clock.instant()).toString())
+                .body(session.accessToken());
     }
 }

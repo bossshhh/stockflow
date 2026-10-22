@@ -18,6 +18,7 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties(prefix = "stockflow.security")
 public record SecurityProperties(
         @Valid @NotNull JwtSettings jwt,
+        @Valid @NotNull RefreshSettings refresh,
         @Min(4) @Max(31) int bcryptStrength,
         @Valid @NotNull CorsSettings cors,
         BootstrapAdmin bootstrapAdmin) {
@@ -32,6 +33,13 @@ public record SecurityProperties(
         public String toString() {
             return "JwtSettings[ttl=" + ttl + ", issuer=" + issuer + ", secret=***]";
         }
+    }
+
+    /**
+     * @param ttl          refresh token lifetime (how long a user stays signed in without re-entering the password)
+     * @param cookieSecure send the cookie over HTTPS only; false only for plain-http local setups
+     */
+    public record RefreshSettings(@NotNull Duration ttl, boolean cookieSecure) {
     }
 
     /** Exact origins allowed to call the API from a browser. Never "*". */

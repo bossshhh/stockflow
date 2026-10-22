@@ -64,6 +64,14 @@ public class UserService {
         return userRepository.findById(id).map(UserResponse::from).orElseThrow(() -> new UserNotFoundException(id));
     }
 
+    /** For token refresh: the account behind a refresh token. Empty when it no longer exists. */
+    @Transactional(readOnly = true)
+    public Optional<UserCredentials> findCredentialsById(long id) {
+        return userRepository.findById(id)
+                .map(user -> new UserCredentials(user.getId(), user.getEmail(), user.getPasswordHash(),
+                        user.getRole(), user.isEnabled()));
+    }
+
     /** For login only. Empty when no account has this email. */
     @Transactional(readOnly = true)
     public Optional<UserCredentials> findCredentialsByEmail(String email) {

@@ -11,7 +11,6 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Service;
 
 import com.stockflow.security.dto.LoginRequest;
-import com.stockflow.security.dto.TokenResponse;
 import com.stockflow.user.dto.UserValidation;
 
 @Service
@@ -21,17 +20,20 @@ public class AuthService {
 
     private final AuthenticationManager authenticationManager;
     private final JwtTokenService jwtTokenService;
+    private final RefreshTokenService refreshTokenService;
 
-    public AuthService(AuthenticationManager authenticationManager, JwtTokenService jwtTokenService) {
+    public AuthService(AuthenticationManager authenticationManager, JwtTokenService jwtTokenService,
+                       RefreshTokenService refreshTokenService) {
         this.authenticationManager = authenticationManager;
         this.jwtTokenService = jwtTokenService;
+        this.refreshTokenService = refreshTokenService;
     }
 
     /**
      * Unknown email, wrong password and disabled account all give the same {@link InvalidCredentialsException}.
      * Emails and passwords are never logged.
      */
-    public TokenResponse login(LoginRequest request) {
+    public AuthSession login(LoginRequest request) {
         // Over BCrypt's 72-byte limit no stored password can match; reject without hashing.
         if (request.password().getBytes(StandardCharsets.UTF_8).length > UserValidation.PASSWORD_MAX_BYTES) {
             throw new InvalidCredentialsException();
@@ -46,6 +48,18 @@ public class AuthService {
         }
         AuthenticatedUser user = (AuthenticatedUser) authentication.getPrincipal();
         log.info("Login succeeded userId={}", user.id());
-        return jwtTokenService.issue(user.id(), user.role());
+        return new AuthSession(jwtTokenService.issue(user.id(), user.role()),
+                refreshTokenService.issueForNewLogin(user.id()));
+    }
+
+    /** New access token plus the next refresh token, in exchange for the current refresh token. */
+    public AuthSession refresh(String refreshToken) {
+        RotatedRefreshToken rotated = refreshTokenService.rotate(refreshToken);
+        return new AuthSession(jwtTokenService.issue(rotated.userId(), rotated.role()), rotated.next());
+    }
+
+    /** Ends this login session. The access token stays valid until it expires (at most its short TTL). */
+    public void logout(String refreshToken) {
+        refreshTokenService.revokeSession(refreshToken);
     }
 }
