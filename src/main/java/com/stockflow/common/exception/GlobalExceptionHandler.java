@@ -15,6 +15,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -43,6 +44,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest request) {
         List<ApiError.FieldViolation> violations = ex.getBindingResult().getFieldErrors().stream()
                 .map(error -> new ApiError.FieldViolation(error.getField(), error.getDefaultMessage()))
+                .toList();
+        return build(ErrorCode.VALIDATION_FAILED, "Request validation failed", request, violations);
+    }
+
+    /** Constraint annotations on @RequestParam / @PathVariable values, e.g. {@code @Min(0) int threshold}. */
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ApiError> handleParameterValidation(HandlerMethodValidationException ex,
+                                                              HttpServletRequest request) {
+        List<ApiError.FieldViolation> violations = ex.getParameterValidationResults().stream()
+                .flatMap(result -> result.getResolvableErrors().stream()
+                        .map(error -> new ApiError.FieldViolation(
+                                result.getMethodParameter().getParameterName(), error.getDefaultMessage())))
                 .toList();
         return build(ErrorCode.VALIDATION_FAILED, "Request validation failed", request, violations);
     }

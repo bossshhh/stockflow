@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.stockflow.common.exception.InvalidRequestParameterException;
 import com.stockflow.inventory.dto.InventoryResponse;
+import com.stockflow.inventory.dto.InventoryValuationResponse;
 import com.stockflow.inventory.dto.StockAdjustmentRequest;
 import com.stockflow.inventory.dto.StockMovementResponse;
 import com.stockflow.product.ProductCreatedEvent;
@@ -118,15 +119,34 @@ public class InventoryService {
                 current -> inconsistent(current, orderId));
     }
 
-    /** Client sort is ignored: history is always newest first. */
+    /**
+     * Client sort is ignored: history is always newest first.
+     *
+     * @param type {@code null} returns movements of every type
+     */
     @Transactional(readOnly = true)
-    public Page<StockMovementResponse> listMovements(long productId, Pageable pageable) {
+    public Page<StockMovementResponse> listMovements(long productId, MovementType type, Pageable pageable) {
         if (!inventoryRepository.existsById(productId)) {
             throw new ProductNotFoundException(productId);
         }
-        return stockMovementRepository.findByProductId(productId,
-                        PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), NEWEST_FIRST))
-                .map(StockMovementResponse::from);
+        PageRequest page = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), NEWEST_FIRST);
+        Page<StockMovement> movements = type == null
+                ? stockMovementRepository.findByProductId(productId, page)
+                : stockMovementRepository.findByProductIdAndType(productId, type, page);
+        return movements.map(StockMovementResponse::from);
+    }
+
+    /** Report: active products with available stock at or below the threshold, lowest first. */
+    @Transactional(readOnly = true)
+    public Page<InventoryResponse> listLowStock(int threshold, Pageable pageable) {
+        return inventoryRepository.findLowStock(threshold,
+                PageRequest.of(pageable.getPageNumber(), pageable.getPageSize()));
+    }
+
+    /** Report: stock totals and value at current prices, across all products. */
+    @Transactional(readOnly = true)
+    public InventoryValuationResponse getValuation() {
+        return inventoryRepository.findValuation();
     }
 
     /**

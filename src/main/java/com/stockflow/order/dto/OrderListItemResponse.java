@@ -1,0 +1,28 @@
+package com.stockflow.order.dto;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+
+import com.stockflow.order.CustomerOrder;
+import com.stockflow.order.OrderStatus;
+
+/**
+ * An order in search results. Items are left out on purpose: loading them for every order on the page would
+ * cost one extra query per order (N+1). Use GET /api/v1/orders/{id} for the full order.
+ */
+public record OrderListItemResponse(
+        Long id,
+        String customerName,
+        String customerEmail,
+        OrderStatus status,
+        BigDecimal totalAmount,
+        Instant createdAt,
+        Instant confirmedAt,
+        Instant cancelledAt) {
+
+    public static OrderListItemResponse from(CustomerOrder order) {
+        return new OrderListItemResponse(order.getId(), order.getCustomerName(), order.getCustomerEmail(),
+                order.getStatus(), order.getTotalAmount(), order.getCreatedAt(), order.getConfirmedAt(),
+                order.getCancelledAt());
+    }
+}

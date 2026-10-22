@@ -13,11 +13,10 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.stockflow.common.exception.InvalidRequestParameterException;
+import com.stockflow.common.web.SortValidation;
 import com.stockflow.product.dto.CreateProductRequest;
 import com.stockflow.product.dto.ProductResponse;
 import com.stockflow.product.dto.UpdateProductRequest;
@@ -92,7 +91,7 @@ public class ProductService {
      */
     @Transactional(readOnly = true)
     public Page<ProductResponse> list(Boolean active, Pageable pageable) {
-        validateSort(pageable.getSort());
+        SortValidation.requireAllowed(pageable.getSort(), SORTABLE_FIELDS);
         Page<Product> page = active == null
                 ? productRepository.findAll(pageable)
                 : productRepository.findAllByActive(active, pageable);
@@ -116,15 +115,6 @@ public class ProductService {
 
     private Product findOrThrow(long id) {
         return productRepository.findById(id).orElseThrow(() -> new ProductNotFoundException(id));
-    }
-
-    private static void validateSort(Sort sort) {
-        for (Sort.Order order : sort) {
-            if (!SORTABLE_FIELDS.contains(order.getProperty())) {
-                throw new InvalidRequestParameterException(
-                        "Cannot sort by '" + order.getProperty() + "'; allowed: " + SORTABLE_FIELDS);
-            }
-        }
     }
 
     static String normalizeSku(String sku) {

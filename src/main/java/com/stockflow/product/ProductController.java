@@ -18,12 +18,17 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import org.springdoc.core.annotations.ParameterObject;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.stockflow.common.web.PageResponse;
 import com.stockflow.product.dto.CreateProductRequest;
 import com.stockflow.product.dto.ProductResponse;
 import com.stockflow.product.dto.UpdateProductRequest;
 
 @RestController
+@Tag(name = "Products", description = "Product catalog: unique SKUs, prices, activation")
 @RequestMapping(ProductController.BASE_PATH)
 public class ProductController {
 
@@ -35,6 +40,7 @@ public class ProductController {
         this.productService = productService;
     }
 
+    @Operation(summary = "Create a product (SKU is stored upper-case and must be unique)")
     @PostMapping
     public ResponseEntity<ProductResponse> create(@Valid @RequestBody CreateProductRequest request) {
         ProductResponse created = productService.create(request);
@@ -45,18 +51,21 @@ public class ProductController {
         return ResponseEntity.created(location).body(created);
     }
 
+    @Operation(summary = "Get one product")
     @GetMapping("/{id}")
     public ResponseEntity<ProductResponse> getById(@PathVariable long id) {
         return ResponseEntity.ok(productService.getById(id));
     }
 
+    @Operation(summary = "List products, paged. Sort by id, sku, name, price, createdAt or updatedAt")
     @GetMapping
     public ResponseEntity<PageResponse<ProductResponse>> list(
             @RequestParam(required = false) Boolean active,
-            @PageableDefault(size = 20, sort = "id") Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20, sort = "id") Pageable pageable) {
         return ResponseEntity.ok(PageResponse.from(productService.list(active, pageable)));
     }
 
+    @Operation(summary = "Update name, description and price (the SKU never changes)")
     @PutMapping("/{id}")
     public ResponseEntity<ProductResponse> update(@PathVariable long id,
                                                   @Valid @RequestBody UpdateProductRequest request) {
@@ -64,6 +73,7 @@ public class ProductController {
     }
 
     /** Deactivates rather than deletes: orders keep referencing the product. */
+    @Operation(summary = "Deactivate a product (it stays in order history; it can no longer be ordered)")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deactivate(@PathVariable long id) {
         productService.deactivate(id);

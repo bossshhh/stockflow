@@ -1,15 +1,18 @@
 package com.stockflow.order;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import jakarta.persistence.LockModeType;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
-public interface OrderRepository extends JpaRepository<CustomerOrder, Long> {
+public interface OrderRepository extends JpaRepository<CustomerOrder, Long>, JpaSpecificationExecutor<CustomerOrder> {
 
     /** Order and its items in one query (no extra query for the items). */
     @EntityGraph(attributePaths = "items")
@@ -23,4 +26,13 @@ public interface OrderRepository extends JpaRepository<CustomerOrder, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT o FROM CustomerOrder o WHERE o.id = :id")
     Optional<CustomerOrder> findByIdForUpdate(long id);
+
+    /** Count and total per status for orders created in [from, to), aggregated by the database. */
+    @Query("""
+            SELECT new com.stockflow.order.OrderStatusTotal(o.status, count(o), sum(o.totalAmount))
+            FROM CustomerOrder o
+            WHERE o.createdAt >= :from AND o.createdAt < :to
+            GROUP BY o.status
+            """)
+    List<OrderStatusTotal> totalsByStatus(Instant from, Instant to);
 }

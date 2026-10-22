@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import com.stockflow.inventory.dto.InventoryResponse;
+import com.stockflow.inventory.dto.InventoryValuationResponse;
 
 /**
  * Every stock change is ONE conditional UPDATE. Postgres locks the row for the statement, so the check
@@ -62,4 +63,23 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     /** One query for the whole page (product joined in), so no N+1. */
     @Query(value = STOCK_LEVEL_SELECT, countQuery = "SELECT count(i) FROM Inventory i")
     Page<InventoryResponse> findStockLevels(Pageable pageable);
+
+    /** Active products whose available stock is at or below {@code threshold}, most urgent first. */
+    @Query(value = STOCK_LEVEL_SELECT + """
+            WHERE p.active = true AND i.onHand - i.reserved <= :threshold
+            ORDER BY i.onHand - i.reserved ASC, i.productId ASC
+            """,
+            countQuery = """
+                    SELECT count(i) FROM Inventory i JOIN Product p ON p.id = i.productId
+                    WHERE p.active = true AND i.onHand - i.reserved <= :threshold
+                    """)
+    Page<InventoryResponse> findLowStock(int threshold, Pageable pageable);
+
+    /** Totals computed by the database in one aggregate query; no rows are loaded into Java. */
+    @Query("""
+            SELECT new com.stockflow.inventory.dto.InventoryValuationResponse(
+                count(i), sum(i.onHand), sum(i.reserved), sum(i.onHand * p.price))
+            FROM Inventory i JOIN Product p ON p.id = i.productId
+            """)
+    InventoryValuationResponse findValuation();
 }

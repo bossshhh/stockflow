@@ -29,6 +29,13 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 30s
 
+springdoc:
+  paths-to-match: /api/**
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
 stockflow:
   orders:
     # A CONFIRMED order can be cancelled while now <= confirmedAt + this window (inclusive).
