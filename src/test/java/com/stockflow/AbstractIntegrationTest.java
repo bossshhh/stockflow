@@ -1,5 +1,6 @@
 package com.stockflow;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -11,14 +12,20 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.stockflow.inventory.InventoryService;
+import com.stockflow.inventory.dto.StockAdjustmentRequest;
+import com.stockflow.product.ProductService;
+import com.stockflow.product.dto.CreateProductRequest;
+
 /**
  * Base for every integration test. All subclasses share one Spring context and therefore one Postgres
- * container (Spring caches contexts with identical configuration), and each test starts from empty tables.
+ * container (Spring caches contexts with identical configuration), and each test starts from empty tables
+ * and the same clock time.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, TestClockConfiguration.class})
 public abstract class AbstractIntegrationTest {
 
     private static final String FLYWAY_HISTORY_TABLE = "flyway_schema_history";
@@ -29,6 +36,15 @@ public abstract class AbstractIntegrationTest {
     @Autowired
     protected JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    protected MutableClock clock;
+
+    @Autowired
+    private ProductService productService;
+
+    @Autowired
+    private InventoryService inventoryService;
+
     /** Truncates every application table, so new tables are cleaned without touching this class. */
     @BeforeEach
     void cleanDatabase() {
@@ -38,5 +54,23 @@ public abstract class AbstractIntegrationTest {
         if (!tables.isEmpty()) {
             jdbcTemplate.execute("TRUNCATE TABLE " + String.join(", ", tables) + " RESTART IDENTITY CASCADE");
         }
+        clock.setInstant(TestClockConfiguration.START);
+    }
+
+    /** Test fixture: a product with {@code stock} units on hand. Returns its id. */
+    protected long productWithStock(String sku, String price, int stock) {
+        long id = productService.create(new CreateProductRequest(sku, "Product " + sku, null, new BigDecimal(price))).id();
+        if (stock > 0) {
+            inventoryService.adjust(id, new StockAdjustmentRequest(stock, "Test stock"));
+        }
+        return id;
+    }
+
+    protected int onHand(long productId) {
+        return inventoryService.getStockLevel(productId).onHand();
+    }
+
+    protected int reserved(long productId) {
+        return inventoryService.getStockLevel(productId).reserved();
     }
 }

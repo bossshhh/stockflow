@@ -18,7 +18,12 @@ public enum ErrorCode {
     PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND),
     DUPLICATE_SKU(HttpStatus.CONFLICT),
 
-    INSUFFICIENT_STOCK(HttpStatus.CONFLICT);
+    INSUFFICIENT_STOCK(HttpStatus.CONFLICT),
+
+    ORDER_NOT_FOUND(HttpStatus.NOT_FOUND),
+    INVALID_ORDER_STATE(HttpStatus.CONFLICT),
+    CANCEL_WINDOW_EXPIRED(HttpStatus.CONFLICT),
+    PRODUCT_UNAVAILABLE(HttpStatus.CONFLICT);
 
     private final HttpStatus status;
 

@@ -1,0 +1,26 @@
+package com.stockflow.order;
+
+import java.util.Optional;
+
+import jakarta.persistence.LockModeType;
+
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+
+public interface OrderRepository extends JpaRepository<CustomerOrder, Long> {
+
+    /** Order and its items in one query (no extra query for the items). */
+    @EntityGraph(attributePaths = "items")
+    Optional<CustomerOrder> findWithItemsById(long id);
+
+    /**
+     * SELECT ... FOR UPDATE: locks the order row until the transaction ends, so two concurrent
+     * confirm/cancel calls on the same order run one after the other and the second sees the new status.
+     * Items are not fetch-joined here: Postgres cannot lock the nullable side of an outer join.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM CustomerOrder o WHERE o.id = :id")
+    Optional<CustomerOrder> findByIdForUpdate(long id);
+}

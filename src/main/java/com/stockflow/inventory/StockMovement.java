@@ -39,6 +39,10 @@ public class StockMovement {
     @Column(name = "reserved_after", nullable = false, updatable = false)
     private int reservedAfter;
 
+    /** The order that caused this change; null for manual adjustments. */
+    @Column(name = "order_id", updatable = false)
+    private Long orderId;
+
     @Column(nullable = false, updatable = false, length = 255)
     private String reason;
 
@@ -50,13 +54,14 @@ public class StockMovement {
     }
 
     public StockMovement(long productId, MovementType type, int onHandChange, int reservedChange,
-                         int onHandAfter, int reservedAfter, String reason, Instant createdAt) {
+                         int onHandAfter, int reservedAfter, Long orderId, String reason, Instant createdAt) {
         this.productId = productId;
         this.type = type;
         this.onHandChange = onHandChange;
         this.reservedChange = reservedChange;
         this.onHandAfter = onHandAfter;
         this.reservedAfter = reservedAfter;
+        this.orderId = orderId;
         this.reason = reason;
         this.createdAt = createdAt;
     }
@@ -87,6 +92,10 @@ public class StockMovement {
 
     public int getReservedAfter() {
         return reservedAfter;
+    }
+
+    public Long getOrderId() {
+        return orderId;
     }
 
     public String getReason() {

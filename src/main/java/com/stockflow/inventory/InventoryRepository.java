@@ -33,18 +33,28 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     void insertEmpty(long productId, Instant now);
 
     /**
-     * Applies a signed change to on-hand stock, unless it would leave less on hand than is reserved
-     * (which also keeps on-hand from going negative).
+     * The single statement behind every stock change (adjust, reserve, release, fulfil, restock).
+     * The WHERE clause is exactly the table's invariants, evaluated on the values AFTER the change:
+     * reserved stays >= 0 and on-hand never drops below reserved. Examples:
+     * <ul>
+     *   <li>reserve q: (0, +q) passes only if on_hand - reserved >= q, i.e. enough is available</li>
+     *   <li>release q: (0, -q) passes only if at least q is reserved</li>
+     *   <li>fulfil q: (-q, -q) passes only if at least q is reserved</li>
+     * </ul>
      *
-     * @return 1 if applied, 0 if the product has no stock row or the change was not allowed
+     * @return 1 if applied, 0 if the product has no stock row or the change would break an invariant
      */
     @Modifying(flushAutomatically = true)
     @Query("""
             UPDATE Inventory i
-            SET i.onHand = i.onHand + :delta, i.updatedAt = :now
-            WHERE i.productId = :productId AND i.onHand + :delta >= i.reserved
+            SET i.onHand = i.onHand + :onHandChange,
+                i.reserved = i.reserved + :reservedChange,
+                i.updatedAt = :now
+            WHERE i.productId = :productId
+              AND i.reserved + :reservedChange >= 0
+              AND i.onHand + :onHandChange >= i.reserved + :reservedChange
             """)
-    int adjustOnHand(long productId, int delta, Instant now);
+    int applyChange(long productId, int onHandChange, int reservedChange, Instant now);
 
     @Query(STOCK_LEVEL_SELECT + "WHERE i.productId = :productId")
     Optional<InventoryResponse> findStockLevel(long productId);

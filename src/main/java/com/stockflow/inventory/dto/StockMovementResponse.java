@@ -13,12 +13,13 @@ public record StockMovementResponse(
         int reservedChange,
         int onHandAfter,
         int reservedAfter,
+        Long orderId,
         String reason,
         Instant createdAt) {
 
     public static StockMovementResponse from(StockMovement movement) {
         return new StockMovementResponse(movement.getId(), movement.getProductId(), movement.getType(),
                 movement.getOnHandChange(), movement.getReservedChange(), movement.getOnHandAfter(),
-                movement.getReservedAfter(), movement.getReason(), movement.getCreatedAt());
+                movement.getReservedAfter(), movement.getOrderId(), movement.getReason(), movement.getCreatedAt());
     }
 }

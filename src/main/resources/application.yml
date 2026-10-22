@@ -29,6 +29,11 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 30s
 
+stockflow:
+  orders:
+    # A CONFIRMED order can be cancelled while now <= confirmedAt + this window (inclusive).
+    confirmed-cancel-window: ${ORDER_CANCEL_WINDOW:5m}
+
 server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful

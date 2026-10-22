@@ -1,8 +1,10 @@
 package com.stockflow.product;
 
 import java.time.Clock;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -67,6 +69,22 @@ public class ProductService {
     @Transactional(readOnly = true)
     public ProductResponse getById(long id) {
         return ProductResponse.from(findOrThrow(id));
+    }
+
+    /**
+     * Loads several products in one query.
+     *
+     * @throws ProductNotFoundException for the first id that does not exist
+     */
+    @Transactional(readOnly = true)
+    public List<ProductResponse> getByIds(Set<Long> ids) {
+        List<Product> found = productRepository.findAllById(ids);
+        if (found.size() != ids.size()) {
+            Set<Long> foundIds = found.stream().map(Product::getId).collect(Collectors.toSet());
+            long missing = ids.stream().filter(id -> !foundIds.contains(id)).findFirst().orElseThrow();
+            throw new ProductNotFoundException(missing);
+        }
+        return found.stream().map(ProductResponse::from).toList();
     }
 
     /**
