@@ -17,7 +17,7 @@ class CustomerOrderTest {
 
     @Test
     void newOrderIsPendingAndTotalsItsLines() {
-        CustomerOrder order = new CustomerOrder("Ada", "ada@example.com", T0);
+        CustomerOrder order = new CustomerOrder(1L, "Ada", "ada@example.com", T0);
         order.addItem(1L, "A", "Apple", new BigDecimal("1.25"), 4);
         order.addItem(2L, "B", "Banana", new BigDecimal("0.10"), 3);
 
@@ -87,7 +87,7 @@ class CustomerOrderTest {
     }
 
     private static CustomerOrder pendingOrder() {
-        CustomerOrder order = new CustomerOrder("Ada", "ada@example.com", T0);
+        CustomerOrder order = new CustomerOrder(1L, "Ada", "ada@example.com", T0);
         order.addItem(1L, "A", "Apple", BigDecimal.ONE, 1);
         return order;
     }

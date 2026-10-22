@@ -33,12 +33,20 @@ import com.stockflow.order.dto.OrderItemRequest;
 import com.stockflow.order.dto.OrderResponse;
 import com.stockflow.product.ProductService;
 import com.stockflow.product.dto.ProductResponse;
+import com.stockflow.user.CurrentUser;
+import com.stockflow.user.Role;
+import com.stockflow.user.UserService;
+import com.stockflow.user.dto.UserResponse;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-01-15T10:00:00Z");
     private static final long ORDER_ID = 100L;
+    private static final long CUSTOMER_ID = 7L;
+    private static final CurrentUser CUSTOMER = new CurrentUser(CUSTOMER_ID, Role.CUSTOMER);
+    private static final CurrentUser OTHER_CUSTOMER = new CurrentUser(8L, Role.CUSTOMER);
+    private static final CurrentUser STAFF = new CurrentUser(99L, Role.STAFF);
 
     @Mock
     private OrderRepository orderRepository;
@@ -49,20 +57,24 @@ class OrderServiceTest {
     @Mock
     private InventoryService inventoryService;
 
+    @Mock
+    private UserService userService;
+
     private OrderService orderService;
 
     @BeforeEach
     void setUp() {
-        orderService = new OrderService(orderRepository, productService, inventoryService,
+        orderService = new OrderService(orderRepository, productService, inventoryService, userService,
                 new OrderProperties(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
     void createMergesDuplicatesAndReservesInAscendingProductIdOrder() {
+        stubAccount();
         when(productService.getByIds(Set.of(3L, 9L))).thenReturn(List.of(product(9L, true), product(3L, true)));
         when(orderRepository.saveAndFlush(any(CustomerOrder.class))).thenAnswer(call -> withId(call.getArgument(0)));
 
-        OrderResponse response = orderService.create(new CreateOrderRequest("Ada", "ada@example.com", List.of(
+        OrderResponse response = orderService.create(CUSTOMER, new CreateOrderRequest(List.of(
                 new OrderItemRequest(9L, 1), new OrderItemRequest(3L, 2), new OrderItemRequest(9L, 4))));
 
         assertThat(response.items()).extracting(item -> item.productId()).containsExactly(3L, 9L);
@@ -74,22 +86,26 @@ class OrderServiceTest {
 
     @Test
     void createSnapshotsPriceAndComputesTotal() {
+        stubAccount();
         when(productService.getByIds(Set.of(3L))).thenReturn(List.of(product(3L, true)));
         when(orderRepository.saveAndFlush(any(CustomerOrder.class))).thenAnswer(call -> withId(call.getArgument(0)));
 
-        OrderResponse response = orderService.create(new CreateOrderRequest("Ada", "ada@example.com",
+        OrderResponse response = orderService.create(CUSTOMER, new CreateOrderRequest(
                 List.of(new OrderItemRequest(3L, 3))));
 
         assertThat(response.items().getFirst().unitPrice()).isEqualByComparingTo("2.50");
         assertThat(response.totalAmount()).isEqualByComparingTo("7.50");
         assertThat(response.status()).isEqualTo(OrderStatus.PENDING);
+        assertThat(response.customerId()).isEqualTo(CUSTOMER_ID);
+        assertThat(response.customerName()).isEqualTo("Ada");
     }
 
     @Test
     void createRejectsInactiveProductBeforeTouchingStock() {
+        stubAccount();
         when(productService.getByIds(Set.of(3L))).thenReturn(List.of(product(3L, false)));
 
-        assertThatThrownBy(() -> orderService.create(new CreateOrderRequest("Ada", "ada@example.com",
+        assertThatThrownBy(() -> orderService.create(CUSTOMER, new CreateOrderRequest(
                 List.of(new OrderItemRequest(3L, 1)))))
                 .isInstanceOf(ProductUnavailableException.class);
         verify(orderRepository, never()).saveAndFlush(any());
@@ -101,7 +117,7 @@ class OrderServiceTest {
         CustomerOrder order = orderWithItem();
         when(orderRepository.findByIdForUpdate(ORDER_ID)).thenReturn(Optional.of(order));
 
-        orderService.cancel(ORDER_ID);
+        orderService.cancel(CUSTOMER, ORDER_ID);
 
         verify(inventoryService).release(3L, 2, ORDER_ID);
         verify(inventoryService, never()).restock(anyLong(), anyInt(), anyLong());
@@ -113,7 +129,7 @@ class OrderServiceTest {
         order.confirm(NOW);
         when(orderRepository.findByIdForUpdate(ORDER_ID)).thenReturn(Optional.of(order));
 
-        orderService.cancel(ORDER_ID);
+        orderService.cancel(CUSTOMER, ORDER_ID);
 
         verify(inventoryService).restock(3L, 2, ORDER_ID);
         verify(inventoryService, never()).release(anyLong(), anyInt(), anyLong());
@@ -136,12 +152,42 @@ class OrderServiceTest {
         assertThatThrownBy(() -> orderService.confirm(ORDER_ID)).isInstanceOf(OrderNotFoundException.class);
     }
 
+    @Test
+    void customerCannotSeeOrCancelSomeoneElsesOrder() {
+        CustomerOrder order = orderWithItem();
+        when(orderRepository.findWithItemsById(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate(ORDER_ID)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.getById(OTHER_CUSTOMER, ORDER_ID))
+                .isInstanceOf(OrderNotFoundException.class);
+        assertThatThrownBy(() -> orderService.cancel(OTHER_CUSTOMER, ORDER_ID))
+                .isInstanceOf(OrderNotFoundException.class);
+        verify(inventoryService, never()).release(anyLong(), anyInt(), anyLong());
+    }
+
+    @Test
+    void staffCanSeeAndCancelAnyOrder() {
+        CustomerOrder order = orderWithItem();
+        when(orderRepository.findWithItemsById(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate(ORDER_ID)).thenReturn(Optional.of(order));
+
+        assertThat(orderService.getById(STAFF, ORDER_ID).id()).isEqualTo(ORDER_ID);
+        orderService.cancel(STAFF, ORDER_ID);
+
+        verify(inventoryService).release(3L, 2, ORDER_ID);
+    }
+
+    private void stubAccount() {
+        when(userService.getById(CUSTOMER_ID))
+                .thenReturn(new UserResponse(CUSTOMER_ID, "ada@example.com", "Ada", Role.CUSTOMER, NOW));
+    }
+
     private static ProductResponse product(long id, boolean active) {
         return new ProductResponse(id, "SKU-" + id, "Product " + id, null, new BigDecimal("2.50"), active, NOW, NOW);
     }
 
     private static CustomerOrder orderWithItem() {
-        CustomerOrder order = new CustomerOrder("Ada", "ada@example.com", NOW);
+        CustomerOrder order = new CustomerOrder(CUSTOMER_ID, "Ada", "ada@example.com", NOW);
         order.addItem(3L, "SKU-3", "Product 3", new BigDecimal("2.50"), 2);
         return withId(order);
     }

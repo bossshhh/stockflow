@@ -1,0 +1,13 @@
+# Keep the build context small and secrets out of the image.
+.env
+.git
+.github
+.idea
+.vscode
+.settings
+.classpath
+.project
+*.iml
+target
+docs
+.DS_Store

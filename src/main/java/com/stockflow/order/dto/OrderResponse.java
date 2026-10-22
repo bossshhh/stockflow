@@ -9,6 +9,7 @@ import com.stockflow.order.OrderStatus;
 
 public record OrderResponse(
         Long id,
+        Long customerId,
         String customerName,
         String customerEmail,
         OrderStatus status,
@@ -21,8 +22,8 @@ public record OrderResponse(
 
     /** Must be called inside a transaction: it reads the (lazy) items. */
     public static OrderResponse from(CustomerOrder order) {
-        return new OrderResponse(order.getId(), order.getCustomerName(), order.getCustomerEmail(), order.getStatus(),
-                order.getTotalAmount(), order.getItems().stream().map(OrderItemResponse::from).toList(),
+        return new OrderResponse(order.getId(), order.getCustomerId(), order.getCustomerName(),
+                order.getCustomerEmail(), order.getStatus(), order.getTotalAmount(), order.getItems().stream().map(OrderItemResponse::from).toList(),
                 order.getCreatedAt(), order.getUpdatedAt(), order.getConfirmedAt(), order.getCancelledAt());
     }
 }

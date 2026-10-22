@@ -12,6 +12,7 @@ import com.stockflow.order.OrderStatus;
  */
 public record OrderListItemResponse(
         Long id,
+        Long customerId,
         String customerName,
         String customerEmail,
         OrderStatus status,
@@ -21,8 +22,8 @@ public record OrderListItemResponse(
         Instant cancelledAt) {
 
     public static OrderListItemResponse from(CustomerOrder order) {
-        return new OrderListItemResponse(order.getId(), order.getCustomerName(), order.getCustomerEmail(),
-                order.getStatus(), order.getTotalAmount(), order.getCreatedAt(), order.getConfirmedAt(),
+        return new OrderListItemResponse(order.getId(), order.getCustomerId(), order.getCustomerName(),
+                order.getCustomerEmail(), order.getStatus(), order.getTotalAmount(), order.getCreatedAt(), order.getConfirmedAt(),
                 order.getCancelledAt());
     }
 }

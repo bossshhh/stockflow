@@ -5,6 +5,12 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
 
+stockflow:
+  security:
+    cors:
+      # No localhost default in production: the real UI origin must be configured.
+      allowed-origins: ${CORS_ALLOWED_ORIGINS}
+
 # API docs are a map of every endpoint: off in production unless explicitly enabled.
 springdoc:
   api-docs:

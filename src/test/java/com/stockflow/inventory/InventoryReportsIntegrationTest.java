@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -23,6 +24,14 @@ class InventoryReportsIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private OrderService orderService;
 
+    private long customerId;
+
+    @BeforeEach
+    void actAsStaff() {
+        mockMvc = mvcAs(staff());
+        customerId = createCustomer("ada@example.com");
+    }
+
     @Test
     void lowStockListsActiveProductsAtOrBelowThresholdLowestFirst() throws Exception {
         productWithStock("PLENTY", "1.00", 50);
@@ -32,7 +41,7 @@ class InventoryReportsIntegrationTest extends AbstractIntegrationTest {
         long retired = productWithStock("RETIRED", "1.00", 0);
         mockMvc.perform(delete("/api/v1/products/" + retired)).andExpect(status().isNoContent());
         // 8 on hand, 6 reserved: only 2 available, so it is low stock even though on-hand looks fine.
-        orderService.create(new CreateOrderRequest("Ada", "ada@example.com",
+        orderService.create(asCustomer(customerId), new CreateOrderRequest(
                 List.of(new OrderItemRequest(reservedDown, 6))));
 
         mockMvc.perform(get(INVENTORY + "/low-stock").param("threshold", "5"))
@@ -62,7 +71,7 @@ class InventoryReportsIntegrationTest extends AbstractIntegrationTest {
     void valuationSumsUnitsAndValueAtCurrentPrices() throws Exception {
         long apple = productWithStock("APPLE", "1.50", 10);
         productWithStock("PEAR", "2.25", 4);
-        orderService.create(new CreateOrderRequest("Ada", "ada@example.com",
+        orderService.create(asCustomer(customerId), new CreateOrderRequest(
                 List.of(new OrderItemRequest(apple, 3))));
 
         mockMvc.perform(get(INVENTORY + "/valuation"))
@@ -77,7 +86,7 @@ class InventoryReportsIntegrationTest extends AbstractIntegrationTest {
     @Test
     void movementsCanBeFilteredByType() throws Exception {
         long apple = productWithStock("APPLE", "1.00", 10);
-        orderService.create(new CreateOrderRequest("Ada", "ada@example.com",
+        orderService.create(asCustomer(customerId), new CreateOrderRequest(
                 List.of(new OrderItemRequest(apple, 2))));
 
         mockMvc.perform(get(INVENTORY + "/" + apple + "/movements").param("type", "RESERVATION"))

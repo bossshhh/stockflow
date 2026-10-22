@@ -12,6 +12,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -19,6 +20,7 @@ import com.stockflow.AbstractIntegrationTest;
 import com.stockflow.inventory.InsufficientStockException;
 import com.stockflow.order.dto.CreateOrderRequest;
 import com.stockflow.order.dto.OrderItemRequest;
+import com.stockflow.user.CurrentUser;
 
 /** The races the project exists to win, run against real Postgres with real threads. */
 class OrderConcurrencyTest extends AbstractIntegrationTest {
@@ -28,13 +30,20 @@ class OrderConcurrencyTest extends AbstractIntegrationTest {
     @Autowired
     private OrderService orderService;
 
+    private CurrentUser racer;
+
+    @BeforeEach
+    void registerRacer() {
+        racer = asCustomer(createCustomer("racer@example.com"));
+    }
+
     @Test
     void manyCustomersRaceForTheLastUnitAndExactlyOneGetsIt() throws Exception {
         long lastUnit = productWithStock("LAST-1", "50.00", 1);
 
         List<Outcome> outcomes = runConcurrently(THREADS, i -> () -> {
             try {
-                orderService.create(order(new OrderItemRequest(lastUnit, 1)));
+                orderService.create(racer, order(new OrderItemRequest(lastUnit, 1)));
                 return Outcome.SUCCEEDED;
             } catch (InsufficientStockException ex) {
                 return Outcome.REJECTED;
@@ -49,7 +58,7 @@ class OrderConcurrencyTest extends AbstractIntegrationTest {
     @Test
     void concurrentConfirmsOfOneOrderDeductStockOnlyOnce() throws Exception {
         long apple = productWithStock("APPLE", "1.00", 10);
-        long orderId = orderService.create(order(new OrderItemRequest(apple, 3))).id();
+        long orderId = orderService.create(racer, order(new OrderItemRequest(apple, 3))).id();
 
         List<Outcome> outcomes = runConcurrently(THREADS, i -> () -> {
             try {
@@ -76,7 +85,7 @@ class OrderConcurrencyTest extends AbstractIntegrationTest {
         List<Outcome> outcomes = runConcurrently(threads, i -> () -> {
             OrderItemRequest a = new OrderItemRequest(apple, 1);
             OrderItemRequest p = new OrderItemRequest(pear, 1);
-            orderService.create(i % 2 == 0 ? order(a, p) : order(p, a));
+            orderService.create(racer, i % 2 == 0 ? order(a, p) : order(p, a));
             return Outcome.SUCCEEDED;
         });
 
@@ -86,7 +95,7 @@ class OrderConcurrencyTest extends AbstractIntegrationTest {
     }
 
     private static CreateOrderRequest order(OrderItemRequest... items) {
-        return new CreateOrderRequest("Racer", "racer@example.com", List.of(items));
+        return new CreateOrderRequest(List.of(items));
     }
 
     /** Starts all tasks at the same instant (start gate) and collects their results. */

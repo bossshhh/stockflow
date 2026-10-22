@@ -1,0 +1,7 @@
+# Test-only values. This secret protects nothing real; never reuse it outside tests.
+stockflow:
+  security:
+    jwt:
+      secret: dGVzdC1vbmx5LWp3dC1zZWNyZXQtYXQtbGVhc3QtMzItYnl0ZXMtbG9uZyE=
+    # Minimum BCrypt cost: hashing strength does not matter in tests, speed does.
+    bcrypt-strength: 4

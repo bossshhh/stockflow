@@ -39,6 +39,10 @@ public class CustomerOrder {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Owner account. Null only for orders placed before accounts existed (V5). */
+    @Column(name = "customer_id", updatable = false)
+    private Long customerId;
+
     @Column(name = "customer_name", nullable = false, length = 200)
     private String customerName;
 
@@ -72,7 +76,9 @@ public class CustomerOrder {
         // for JPA
     }
 
-    public CustomerOrder(String customerName, String customerEmail, Instant now) {
+    /** customerName and customerEmail are snapshots of the account at ordering time. */
+    public CustomerOrder(long customerId, String customerName, String customerEmail, Instant now) {
+        this.customerId = customerId;
         this.customerName = customerName;
         this.customerEmail = customerEmail;
         this.status = OrderStatus.PENDING;
@@ -120,6 +126,14 @@ public class CustomerOrder {
 
     public Long getId() {
         return id;
+    }
+
+    public Long getCustomerId() {
+        return customerId;
+    }
+
+    public boolean isOwnedBy(long userId) {
+        return customerId != null && customerId == userId;
     }
 
     public String getCustomerName() {

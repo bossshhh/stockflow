@@ -13,6 +13,7 @@ import org.springframework.data.jpa.domain.Specification;
  */
 final class OrderSpecifications {
 
+    private static final String CUSTOMER_ID = "customerId";
     private static final String STATUS = "status";
     private static final String CUSTOMER_EMAIL = "customerEmail";
     private static final String CREATED_AT = "createdAt";
@@ -22,6 +23,9 @@ final class OrderSpecifications {
 
     static Specification<CustomerOrder> matching(OrderSearchCriteria criteria) {
         List<Specification<CustomerOrder>> conditions = new ArrayList<>();
+        if (criteria.customerId() != null) {
+            conditions.add(hasCustomerId(criteria.customerId()));
+        }
         if (criteria.status() != null) {
             conditions.add(hasStatus(criteria.status()));
         }
@@ -35,6 +39,10 @@ final class OrderSpecifications {
             conditions.add(createdBefore(criteria.createdTo()));
         }
         return Specification.allOf(conditions);
+    }
+
+    static Specification<CustomerOrder> hasCustomerId(long customerId) {
+        return (root, query, cb) -> cb.equal(root.get(CUSTOMER_ID), customerId);
     }
 
     static Specification<CustomerOrder> hasStatus(OrderStatus status) {

@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 
@@ -18,6 +19,12 @@ import com.jayway.jsonpath.JsonPath;
 import com.stockflow.AbstractIntegrationTest;
 
 class ProductControllerIntegrationTest extends AbstractIntegrationTest {
+
+    /** Product and stock management is staff work; access rules are tested in SecurityRulesIntegrationTest. */
+    @BeforeEach
+    void actAsStaff() {
+        mockMvc = mvcAs(staff());
+    }
 
     private static final String PRODUCTS = "/api/v1/products";
 

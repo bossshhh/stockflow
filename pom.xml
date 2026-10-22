@@ -21,6 +21,8 @@
         <java.version>21</java.version>
         <!-- springdoc 2.8.x is the line for Spring Boot 3.x (3.x targets Boot 4). -->
         <springdoc.version>2.8.17</springdoc.version>
+        <!-- Filled by maven-dependency-plugin:properties; used to attach Mockito as a Java agent. -->
+        <argLine></argLine>
     </properties>
 
     <dependencies>
@@ -39,6 +41,15 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <!-- Spring's own JWT validation (Nimbus); no hand-written token parsing. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
         </dependency>
 
         <dependency>
@@ -68,6 +79,11 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-testcontainers</artifactId>
             <scope>test</scope>
@@ -89,6 +105,27 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <!-- Exposes ${org.mockito:mockito-core:jar} (the jar's path) for the Surefire argLine below. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>properties</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Load Mockito as an agent at JVM start. Attaching it dynamically at runtime triggers a JDK warning
+                 and will be blocked by default in a future JDK (JEP 451). -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar} -Xshare:off</argLine>
+                </configuration>
             </plugin>
             <!-- Fail fast with a clear message instead of obscure Mockito/ByteBuddy errors on another JDK. -->
             <plugin>
