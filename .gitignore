@@ -4,6 +4,9 @@ target/
 # Secrets
 .env
 
+# Private study notes (GUIDE, QUESTIONS, ROADMAP) live outside the repo, in ~/Desktop/stockflow-docs
+docs/
+
 # IDE
 .idea/
 *.iml

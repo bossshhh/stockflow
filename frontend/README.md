@@ -11,5 +11,3 @@ npm run lint       # oxlint
 npm run build      # production build in dist/
 npm run gen:api    # regenerate src/api/schema.d.ts from the running backend's OpenAPI spec
 ```
-
-Design notes and decisions: `../docs/GUIDE.md`, section "The web UI".

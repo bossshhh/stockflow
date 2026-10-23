@@ -149,9 +149,6 @@ Every error has the same shape, with a stable machine-readable `code`:
 | JWT: 15-minute tokens, only `userId` + `role` inside, HS256 secret from the environment | Stateless auth; tokens are readable by anyone, so no personal data in them |
 | Flyway owns the schema, `ddl-auto: validate` | Versioned, reviewable schema changes; Hibernate never alters the database |
 
-The full walkthrough of every file and decision is in [`docs/GUIDE.md`](docs/GUIDE.md). Design questions
-with answers (concurrency, transactions, indexing, JWT) are in [`docs/QUESTIONS.md`](docs/QUESTIONS.md).
-
 ## Roadmap
 
 - [x] Products, inventory, orders, search and reports
@@ -162,4 +159,5 @@ with answers (concurrency, transactions, indexing, JWT) are in [`docs/QUESTIONS.
 - [x] Fulfilment tracking: packed / shipped / delivered, status history, warehouse role
 - [x] UI served by nginx in Docker Compose; Playwright browser tests in CI
 - [ ] Carrier integration (DHL / UPS tracking numbers)
-- [ ] Hardening, load test, observability, audit, multiple warehouses, deployment: see [`docs/ROADMAP.md`](docs/ROADMAP.md)
+- [ ] Hardening: idempotent order placement, lock timeouts, login rate limiting, token revocation
+- [ ] Load test, observability, audit trail, multiple warehouses, deployment
