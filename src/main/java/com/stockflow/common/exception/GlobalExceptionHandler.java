@@ -9,6 +9,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.transaction.CannotCreateTransactionException;
@@ -32,6 +34,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final String RETRY_AFTER_SECONDS = "1";
 
     private final Clock clock;
 
@@ -117,6 +120,21 @@ public class GlobalExceptionHandler {
         log.warn("Database unavailable on {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
         return build(ErrorCode.SERVICE_UNAVAILABLE, "The service is temporarily unavailable; please retry shortly",
                 request, List.of());
+    }
+
+    /**
+     * A lock could not be taken in time (lock_timeout) or PostgreSQL broke a deadlock. Temporary: the same
+     * request will most likely succeed a moment later, and the whole transaction was rolled back, so a
+     * retry is safe (for placing orders, use the same Idempotency-Key). Hence 409 with Retry-After.
+     */
+    @ExceptionHandler(PessimisticLockingFailureException.class)
+    public ResponseEntity<ApiError> handleLockConflict(PessimisticLockingFailureException ex, HttpServletRequest request) {
+        log.warn("Lock conflict on {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMostSpecificCause().getMessage());
+        ResponseEntity<ApiError> response = build(ErrorCode.CONCURRENT_UPDATE,
+                "Another request is changing the same data right now; please retry", request, List.of());
+        return ResponseEntity.status(response.getStatusCode())
+                .header(HttpHeaders.RETRY_AFTER, RETRY_AFTER_SECONDS)
+                .body(response.getBody());
     }
 
     @ExceptionHandler(Exception.class)

@@ -1,4 +1,10 @@
 # Test-only values. This secret protects nothing real; never reuse it outside tests.
+spring:
+  datasource:
+    hikari:
+      # Short, so lock-timeout tests are fast. Must stay well above any normal lock wait in the
+      # concurrency tests (milliseconds), or they would fail with CONCURRENT_UPDATE.
+      connection-init-sql: SET lock_timeout = '500ms'
 stockflow:
   security:
     jwt:

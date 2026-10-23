@@ -119,13 +119,14 @@ class SecurityRulesIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void corsLetsTheUiSendAnIdempotencyKeyAndReadTheReplayHeader() throws Exception {
+    void corsLetsTheUiSendAnIdempotencyKeyAndReadTheReplayAndRetryHeaders() throws Exception {
         mockMvc.perform(options("/api/v1/orders")
                         .header(HttpHeaders.ORIGIN, "http://localhost:5173")
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "authorization,content-type,idempotency-key"))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, containsStringIgnoringCase(ApiHeaders.IDEMPOTENCY_KEY)))
-                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, containsString(ApiHeaders.IDEMPOTENT_REPLAYED)));
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, containsString(ApiHeaders.IDEMPOTENT_REPLAYED)))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, containsString(HttpHeaders.RETRY_AFTER)));
     }
 }

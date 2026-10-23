@@ -33,7 +33,7 @@ customers order the last unit at the same moment.
   theft detection (a replayed token revokes the whole session). BCrypt, role-based
   access (customer / staff / admin) plus ownership checks: customers only ever see their own orders
   (and get 404, not 403, for others').
-- **159 backend + 38 frontend tests, plus 15 browser tests** (unit, integration against real PostgreSQL,
+- **165 backend + 38 frontend tests, plus 15 browser tests** (unit, integration against real PostgreSQL,
   concurrency, security, end to end in Chromium). On every push GitHub Actions also starts the whole
   Docker stack from scratch and runs the browser tests and the API smoke test against it.
 
@@ -151,6 +151,7 @@ Every error has the same shape, with a stable machine-readable `code`:
 | Testcontainers instead of H2 | H2 does not reproduce PostgreSQL locking; concurrency tests would prove nothing |
 | Search returns summaries without items; reports aggregate in SQL | No N+1 queries, no loading thousands of rows into Java |
 | JWT: 15-minute tokens, only `userId` + `role` inside, HS256 secret from the environment | Stateless auth; tokens are readable by anyone, so no personal data in them |
+| `lock_timeout` (3 s) on every DB connection; lock conflicts → 409 `CONCURRENT_UPDATE` + `Retry-After` | One stuck transaction can no longer freeze the API; clients get a clean, retryable error |
 | Flyway owns the schema, `ddl-auto: validate` | Versioned, reviewable schema changes; Hibernate never alters the database |
 
 ## Roadmap
@@ -164,5 +165,6 @@ Every error has the same shape, with a stable machine-readable `code`:
 - [x] UI served by nginx in Docker Compose; Playwright browser tests in CI
 - [ ] Carrier integration (DHL / UPS tracking numbers)
 - [x] Idempotent order placement (`Idempotency-Key`)
-- [ ] Hardening: lock timeouts, login rate limiting, token revocation
+- [x] Lock timeout with clean, retryable 409 errors
+- [ ] Hardening: login rate limiting, token revocation
 - [ ] Load test, observability, audit trail, multiple warehouses, deployment

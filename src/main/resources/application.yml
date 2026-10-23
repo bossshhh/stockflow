@@ -10,6 +10,11 @@ spring:
       # Raise it only after load testing shows threads waiting for connections.
       maximum-pool-size: ${DB_POOL_SIZE:10}
       connection-timeout: 5000
+      # Every statement waits at most this long for a row or table lock, then fails (mapped to 409
+      # CONCURRENT_UPDATE). Without it, one stuck transaction makes every request behind it wait forever,
+      # each holding a pooled connection, until the whole API stops. Set per connection, so it covers every
+      # query, including Flyway migrations (which then fail fast instead of blocking all traffic).
+      connection-init-sql: SET lock_timeout = '${DB_LOCK_TIMEOUT:3s}'
   jpa:
     open-in-view: false
     show-sql: false

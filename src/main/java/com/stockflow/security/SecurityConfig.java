@@ -171,7 +171,7 @@ public class SecurityConfig {
         config.setAllowedMethods(List.of(HttpMethod.GET.name(), HttpMethod.POST.name(), HttpMethod.PUT.name(),
                 HttpMethod.DELETE.name(), HttpMethod.OPTIONS.name()));
         config.setAllowedHeaders(List.of(HttpHeaders.AUTHORIZATION, HttpHeaders.CONTENT_TYPE, ApiHeaders.IDEMPOTENCY_KEY));
-        config.setExposedHeaders(List.of(HttpHeaders.LOCATION, ApiHeaders.IDEMPOTENT_REPLAYED));
+        config.setExposedHeaders(List.of(HttpHeaders.LOCATION, HttpHeaders.RETRY_AFTER, ApiHeaders.IDEMPOTENT_REPLAYED));
         // Tokens travel in a header, not cookies, so the browser never needs to send credentials.
         config.setAllowCredentials(false);
         config.setMaxAge(Duration.ofHours(1));
