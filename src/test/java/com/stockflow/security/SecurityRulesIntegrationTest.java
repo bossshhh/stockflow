@@ -91,6 +91,11 @@ class SecurityRulesIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.role").value("STAFF"));
         mockMvc.perform(post("/api/v1/admin/users").with(admin()).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"email": "wes@stockflow.local", "password": "%s", "fullName": "Wes", "role": "WAREHOUSE"}
+                        """.formatted(TEST_PASSWORD)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.role").value("WAREHOUSE"));
+        mockMvc.perform(post("/api/v1/admin/users").with(admin()).contentType(MediaType.APPLICATION_JSON).content("""
                         {"email": "cat@example.com", "password": "%s", "fullName": "Cat", "role": "CUSTOMER"}
                         """.formatted(TEST_PASSWORD)))
                 .andExpect(status().isBadRequest());

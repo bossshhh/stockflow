@@ -2,6 +2,8 @@ package com.stockflow.inventory.dto;
 
 import java.time.Instant;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import com.stockflow.inventory.MovementType;
 import com.stockflow.inventory.StockMovement;
 
@@ -13,6 +15,7 @@ public record StockMovementResponse(
         int reservedChange,
         int onHandAfter,
         int reservedAfter,
+        @Schema(nullable = true)
         Long orderId,
         String reason,
         Instant createdAt) {

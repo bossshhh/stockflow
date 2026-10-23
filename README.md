@@ -7,6 +7,7 @@ orders and fulfilment. It is built so that it **never sells stock it does not ha
 customers order the last unit at the same moment.
 
 **Java 21 · Spring Boot 3.5 · PostgreSQL 17 · Spring Security (JWT) · Flyway · Testcontainers · Docker · GitHub Actions**
+**React 19 · TypeScript · Vite · TanStack Query · Tailwind CSS · shadcn/ui**
 
 ---
 
@@ -18,16 +19,17 @@ customers order the last unit at the same moment.
 - **Deadlock-free multi-item orders.** Rows are always locked in one global order (order row, then
   stock rows by ascending product id). Proven by a test that sends `[A, B]` and `[B, A]` orders from 20
   threads; removing the sorting makes it fail with `deadlock detected`.
-- **Order lifecycle with stock side effects.** `PENDING → CONFIRMED → CANCELLED`: reserve on create,
-  deduct on confirm, release or restock on cancel (confirmed orders: within a 5-minute window, tested to
-  the millisecond with an injectable clock).
+- **Order lifecycle with stock side effects.** `PENDING → CONFIRMED → PACKED → SHIPPED → DELIVERED`:
+  reserve on create, deduct on confirm, release or restock on cancel (confirmed orders only within a
+  5-minute window, tested to the millisecond with an injectable clock; never once packed). Every status
+  change is recorded with who and when, and drives the customer's tracking timeline.
 - **Full audit trail.** Every stock change writes a movement row (type, delta, resulting levels,
   order id) in the same transaction.
 - **Security.** Short-lived JWT access tokens plus rotating refresh tokens in an HttpOnly cookie with
   theft detection (a replayed token revokes the whole session). BCrypt, role-based
   access (customer / staff / admin) plus ownership checks: customers only ever see their own orders
   (and get 404, not 403, for others').
-- **135 automated tests** (unit, integration against real PostgreSQL, concurrency, security), run on
+- **148 backend + 32 frontend automated tests** (unit, integration against real PostgreSQL, concurrency, security), run on
   every push by GitHub Actions.
 
 ## Architecture
@@ -58,7 +60,20 @@ com.stockflow
 
 ## Run it
 
-Requirements: Docker. (For development without Docker for the app: JDK 21.)
+Requirements: Docker and Node.js 24+. (To run the backend outside Docker: JDK 21.)
+
+```bash
+cp .env.example .env          # set DB_PASSWORD, JWT_SECRET (openssl rand -base64 32), ADMIN_*
+docker compose up -d --build  # PostgreSQL + API on :8080
+scripts/seed-demo.sh          # optional: demo products, orders and accounts
+cd frontend && npm install && npm run dev   # web UI on http://localhost:5173
+```
+
+Demo accounts after seeding: staff `staff@stockflow.local` / `staff-password-123`, warehouse
+`warehouse@stockflow.local` / `warehouse-password-123`, customer
+`ada@example.com` / `customer-password-123`, admin from `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env`.
+
+### Backend only
 
 ```bash
 cp .env.example .env          # then set DB_PASSWORD, JWT_SECRET (openssl rand -base64 32), ADMIN_*
@@ -98,7 +113,8 @@ scripts/smoke-test.sh            # defaults to http://localhost:8080
 | Catalog | `GET /api/v1/catalog?q=`, `GET /api/v1/catalog/{id}` (active products, `inStock` flag, no counts) | public |
 | Products | `GET/POST /api/v1/products`, `GET/PUT/DELETE /api/v1/products/{id}` | read: all; write: staff |
 | Inventory | `GET /api/v1/inventory`, `GET /{productId}`, `POST /{productId}/adjustments`, `GET /{productId}/movements`, `GET /low-stock`, `GET /valuation` | staff |
-| Orders | `POST /api/v1/orders`, `GET /api/v1/orders` (search), `GET /{id}`, `POST /{id}/confirm`, `POST /{id}/cancel`, `GET /summary` | customers: own orders; staff: all |
+| Orders | `POST /api/v1/orders`, `GET /api/v1/orders` (search), `GET /{id}` (with status history), `POST /{id}/confirm`, `POST /{id}/cancel`, `GET /summary` | customers: own orders; staff: all |
+| Fulfilment | `POST /api/v1/orders/{id}/pack`, `/ship`, `/deliver` | warehouse and staff |
 | Admin | `POST /api/v1/admin/users` | admin |
 
 Every error has the same shape, with a stable machine-readable `code`:
@@ -130,5 +146,7 @@ with answers (concurrency, transactions, indexing, JWT) are in [`docs/QUESTIONS.
 - [x] Security: JWT, roles, ownership
 - [x] CI, Docker image, Docker Compose
 - [x] Refresh tokens and public catalog for the UI
-- [ ] Web UI (React + TypeScript), in progress
+- [x] Web UI: shop, cart, order tracking, staff overview, orders, inventory, products, team
+- [x] Fulfilment tracking: packed / shipped / delivered, status history, warehouse role
+- [ ] Carrier integration (DHL / UPS tracking numbers)
 - [ ] Hardening, load test, observability, audit, multiple warehouses, deployment: see [`docs/ROADMAP.md`](docs/ROADMAP.md)

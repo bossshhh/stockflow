@@ -21,10 +21,13 @@ import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 
 /**
- * A customer order and its lifecycle rules. The entity decides WHETHER a transition is allowed;
- * {@link OrderService} performs the matching stock changes. Allowed transitions:
+ * A customer order and its lifecycle rules. The entity decides WHETHER a transition is allowed and records
+ * it in the status history; {@link OrderService} performs the matching stock changes. Allowed transitions:
  * <pre>
- *   PENDING   --confirm--> CONFIRMED
+ *   PENDING   --confirm--> CONFIRMED   (stock deducted)
+ *   CONFIRMED --pack-----> PACKED      (from here on the order can no longer be cancelled)
+ *   PACKED    --ship-----> SHIPPED
+ *   SHIPPED   --deliver--> DELIVERED   (terminal)
  *   PENDING   --cancel---> CANCELLED   (reservation released)
  *   CONFIRMED --cancel---> CANCELLED   (only while now <= confirmedAt + window; stock restocked)
  * </pre>
@@ -72,6 +75,11 @@ public class CustomerOrder {
     @OrderBy("productId ASC")
     private List<OrderItem> items = new ArrayList<>();
 
+    /** Append-only status history; every transition below adds exactly one entry. */
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
+    @OrderBy("occurredAt ASC, id ASC")
+    private List<OrderStatusEvent> history = new ArrayList<>();
+
     protected CustomerOrder() {
         // for JPA
     }
@@ -85,6 +93,7 @@ public class CustomerOrder {
         this.totalAmount = BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
         this.createdAt = now;
         this.updatedAt = now;
+        this.history.add(new OrderStatusEvent(this, OrderStatus.PENDING, customerId, now));
     }
 
     public void addItem(long productId, String sku, String productName, BigDecimal unitPrice, int quantity) {
@@ -94,28 +103,47 @@ public class CustomerOrder {
         totalAmount = totalAmount.add(item.getLineTotal());
     }
 
-    public void confirm(Instant now) {
+    public void confirm(Instant now, long actorId) {
         requireStatus(OrderStatus.PENDING, "confirm");
-        status = OrderStatus.CONFIRMED;
         confirmedAt = now;
-        updatedAt = now;
+        moveTo(OrderStatus.CONFIRMED, now, actorId);
+    }
+
+    public void pack(Instant now, long actorId) {
+        requireStatus(OrderStatus.CONFIRMED, "pack");
+        moveTo(OrderStatus.PACKED, now, actorId);
+    }
+
+    public void ship(Instant now, long actorId) {
+        requireStatus(OrderStatus.PACKED, "ship");
+        moveTo(OrderStatus.SHIPPED, now, actorId);
+    }
+
+    public void deliver(Instant now, long actorId) {
+        requireStatus(OrderStatus.SHIPPED, "mark as delivered");
+        moveTo(OrderStatus.DELIVERED, now, actorId);
     }
 
     /**
      * @param confirmedCancelWindow a confirmed order may be cancelled while {@code now <= confirmedAt + window}
-     * @throws InvalidOrderStateException   if the order is already cancelled
+     * @throws InvalidOrderStateException   if the order is already cancelled, or packed / shipped / delivered
      * @throws CancelWindowExpiredException if a confirmed order is past its window
      */
-    public void cancel(Instant now, Duration confirmedCancelWindow) {
-        if (status == OrderStatus.CANCELLED) {
+    public void cancel(Instant now, Duration confirmedCancelWindow, long actorId) {
+        if (status != OrderStatus.PENDING && status != OrderStatus.CONFIRMED) {
             throw new InvalidOrderStateException(id, status, "cancel");
         }
         if (status == OrderStatus.CONFIRMED && now.isAfter(confirmedAt.plus(confirmedCancelWindow))) {
             throw new CancelWindowExpiredException(id, confirmedCancelWindow);
         }
-        status = OrderStatus.CANCELLED;
         cancelledAt = now;
+        moveTo(OrderStatus.CANCELLED, now, actorId);
+    }
+
+    private void moveTo(OrderStatus next, Instant now, long actorId) {
+        status = next;
         updatedAt = now;
+        history.add(new OrderStatusEvent(this, next, actorId, now));
     }
 
     private void requireStatus(OrderStatus required, String action) {
@@ -170,5 +198,9 @@ public class CustomerOrder {
 
     public List<OrderItem> getItems() {
         return Collections.unmodifiableList(items);
+    }
+
+    public List<OrderStatusEvent> getHistory() {
+        return Collections.unmodifiableList(history);
     }
 }

@@ -53,6 +53,7 @@ import com.stockflow.user.Role;
 public class SecurityConfig {
 
     private static final String CUSTOMER = Role.CUSTOMER.name();
+    private static final String WAREHOUSE = Role.WAREHOUSE.name();
     private static final String STAFF = Role.STAFF.name();
     private static final String ADMIN = Role.ADMIN.name();
 
@@ -87,13 +88,19 @@ public class SecurityConfig {
                         // Products: everyone signed in may browse; only staff may change
                         .requestMatchers(HttpMethod.GET, "/api/v1/products/**").authenticated()
                         .requestMatchers("/api/v1/products/**").hasAnyRole(STAFF, ADMIN)
-                        // Inventory: staff only (customers must not see stock counts)
+                        // Inventory: the warehouse may read it; only staff may change it. Never customers.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/inventory/**").hasAnyRole(WAREHOUSE, STAFF, ADMIN)
                         .requestMatchers("/api/v1/inventory/**").hasAnyRole(STAFF, ADMIN)
                         // Orders
                         .requestMatchers(HttpMethod.POST, "/api/v1/orders").hasRole(CUSTOMER)
                         .requestMatchers(HttpMethod.POST, "/api/v1/orders/*/confirm").hasAnyRole(STAFF, ADMIN)
+                        // Fulfilment: the warehouse's job; staff can do it too
+                        .requestMatchers(HttpMethod.POST, "/api/v1/orders/*/pack", "/api/v1/orders/*/ship",
+                                "/api/v1/orders/*/deliver").hasAnyRole(WAREHOUSE, STAFF, ADMIN)
+                        // Cancelling: the customer (own orders, checked in OrderService) or staff, not the warehouse
+                        .requestMatchers(HttpMethod.POST, "/api/v1/orders/*/cancel").hasAnyRole(CUSTOMER, STAFF, ADMIN)
                         .requestMatchers(HttpMethod.GET, "/api/v1/orders/summary").hasAnyRole(STAFF, ADMIN)
-                        // Viewing, searching and cancelling: any role; OrderService restricts customers to their own
+                        // Viewing and searching: any role; OrderService restricts customers to their own
                         .requestMatchers("/api/v1/orders/**").authenticated()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2

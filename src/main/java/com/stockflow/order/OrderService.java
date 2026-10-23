@@ -135,17 +135,19 @@ public class OrderService {
         for (OrderStatusTotal total : orderRepository.totalsByStatus(from, to)) {
             countsByStatus.put(total.status(), total.orderCount());
             totalOrders += total.orderCount();
-            if (total.status() == OrderStatus.CONFIRMED) {
-                confirmedRevenue = total.totalAmount();
+            // A packed, shipped or delivered order is still a confirmed sale: without this, revenue would
+            // drop every time the warehouse moved an order forward.
+            if (total.status().isFulfilmentStage()) {
+                confirmedRevenue = confirmedRevenue.add(total.totalAmount());
             }
         }
         return new OrderSummaryReport(from, to, totalOrders, countsByStatus, confirmedRevenue);
     }
 
     @Transactional
-    public OrderResponse confirm(long id) {
+    public OrderResponse confirm(CurrentUser actor, long id) {
         CustomerOrder order = lockOrThrow(id);
-        order.confirm(clock.instant());
+        order.confirm(clock.instant(), actor.id());
         itemsInLockOrder(order).forEach(item ->
                 inventoryService.fulfill(item.getProductId(), item.getQuantity(), order.getId()));
         log.info("Confirmed order id={}", order.getId());
@@ -159,7 +161,7 @@ public class OrderService {
         requireVisibleTo(order, actor);
         OrderStatus previous = order.getStatus();
         Instant now = clock.instant();
-        order.cancel(now, orderProperties.confirmedCancelWindow());
+        order.cancel(now, orderProperties.confirmedCancelWindow(), actor.id());
 
         // PENDING: units were only set aside. CONFIRMED: units had left on-hand stock and come back.
         for (OrderItem item : itemsInLockOrder(order)) {
@@ -170,6 +172,33 @@ public class OrderService {
             }
         }
         log.info("Cancelled order id={} previousStatus={}", order.getId(), previous);
+        return OrderResponse.from(order);
+    }
+
+    /** Warehouse: the confirmed order's items are packed. From here on it can no longer be cancelled. */
+    @Transactional
+    public OrderResponse pack(CurrentUser actor, long id) {
+        CustomerOrder order = lockOrThrow(id);
+        order.pack(clock.instant(), actor.id());
+        log.info("Packed order id={} by userId={}", order.getId(), actor.id());
+        return OrderResponse.from(order);
+    }
+
+    /** Warehouse: the packed order left the building. No stock change: stock left at confirmation. */
+    @Transactional
+    public OrderResponse ship(CurrentUser actor, long id) {
+        CustomerOrder order = lockOrThrow(id);
+        order.ship(clock.instant(), actor.id());
+        log.info("Shipped order id={} by userId={}", order.getId(), actor.id());
+        return OrderResponse.from(order);
+    }
+
+    /** Warehouse: the shipped order reached the customer. Terminal. */
+    @Transactional
+    public OrderResponse deliver(CurrentUser actor, long id) {
+        CustomerOrder order = lockOrThrow(id);
+        order.deliver(clock.instant(), actor.id());
+        log.info("Delivered order id={} by userId={}", order.getId(), actor.id());
         return OrderResponse.from(order);
     }
 

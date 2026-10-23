@@ -3,12 +3,15 @@ package com.stockflow.product.dto;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import com.stockflow.product.Product;
 
 public record ProductResponse(
         Long id,
         String sku,
         String name,
+        @Schema(nullable = true)
         String description,
         BigDecimal price,
         boolean active,

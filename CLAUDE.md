@@ -22,14 +22,21 @@ We build the MVP first and nothing ships until it is solid. A UI comes later.
    SINGLE warehouse (one inventory row per product). Multiple warehouses are added only after the
    single-warehouse version is proven, through a new migration.
 2. **Order processing**: create customer orders with multiple items, validate them, reserve stock,
-   and move each order through a controlled lifecycle: PENDING -> CONFIRMED -> CANCELLED.
+   and move each order through a controlled lifecycle (see Business rules).
 3. **Inventory integrity**: no overselling when two customers buy the last unit at the same time.
    Cancelling an order releases its reservation.
 4. **Operational visibility**: search orders, filter by status, view stock movement history, and
    get inventory reports through the API.
 
 ### Business rules
-- Order lifecycle: PENDING -> CONFIRMED -> CANCELLED. CANCELLED is terminal.
+- Order lifecycle: PENDING -> CONFIRMED -> PACKED -> SHIPPED -> DELIVERED, or CANCELLED before packing.
+  CANCELLED and DELIVERED are terminal. Every status change is recorded in `order_status_events`
+  (who and when) by the CustomerOrder entity itself.
+- Roles: CUSTOMER (own orders), WAREHOUSE (pack/ship/deliver, read stock; cannot confirm or cancel),
+  STAFF (everything WAREHOUSE can, plus confirm, cancel, products, stock changes, reports), ADMIN (all +
+  accounts). Decided 2026-10-23.
+- Once an order is PACKED it can no longer be cancelled (even inside the 5-minute window). Decided 2026-10-23.
+- Carrier tracking numbers (DHL/UPS) come with the carrier integration, not before.
 - Creating an order reserves stock. Confirming deducts it from on-hand stock. Cancelling a PENDING
   order releases the reservation.
 - A CONFIRMED order can be cancelled only while `now <= confirmedAt + 5 minutes` (inclusive: at

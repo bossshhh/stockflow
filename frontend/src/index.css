@@ -1,0 +1,149 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-sans-condensed/500.css";
+@import "@fontsource/ibm-plex-sans-condensed/600.css";
+
+/*
+ * StockFlow design tokens. One dark theme: a warehouse floor at night.
+ *   asphalt  #15191E  page background (blue-grey, not black)
+ *   panel    #1D2228  surfaces
+ *   line     #2C333B  borders (we separate with lines, not shadows)
+ *   amber    #F2A93B  the single primary accent: actions, active nav, PENDING
+ *   teal     #3FB6A8  confirmed, in stock, success
+ *   red      #E5534B  cancelled, errors, destructive
+ *   paper    #E8E6E1  text; #9AA3AD muted text
+ */
+:root {
+    --asphalt: #15191e;
+    --panel: #1d2228;
+    --panel-raised: #242a31;
+    --line: #2c333b;
+    --amber: #f2a93b;
+    --amber-ink: #1a1408;
+    --teal: #3fb6a8;
+    --red: #e5534b;
+    --sky: #6aa7d8;
+    --paper: #e8e6e1;
+    /* Chart marks only: deeper steps of sky and amber, validated (dataviz validate_palette.js, dark
+       mode, surface #1D2228): lightness band, chroma floor, CVD dE 23.8, normal dE 26.9, contrast >= 3:1. */
+    --chart-available: #3d8bd0;
+    --chart-reserved: #c4800f;
+    --paper-muted: #9aa3ad;
+
+    --background: var(--asphalt);
+    --foreground: var(--paper);
+    --card: var(--panel);
+    --card-foreground: var(--paper);
+    --popover: var(--panel-raised);
+    --popover-foreground: var(--paper);
+    --primary: var(--amber);
+    --primary-foreground: var(--amber-ink);
+    --secondary: var(--panel-raised);
+    --secondary-foreground: var(--paper);
+    --muted: var(--panel-raised);
+    --muted-foreground: var(--paper-muted);
+    --accent: #2a3038;
+    --accent-foreground: var(--paper);
+    --destructive: var(--red);
+    --border: var(--line);
+    --input: #353d46;
+    --ring: var(--amber);
+    --chart-1: var(--amber);
+    --chart-2: var(--teal);
+    --chart-3: var(--sky);
+    --chart-4: var(--red);
+    --chart-5: var(--paper-muted);
+    --radius: 0.5rem;
+    --sidebar: #181c21;
+    --sidebar-foreground: var(--paper-muted);
+    --sidebar-primary: var(--amber);
+    --sidebar-primary-foreground: var(--amber-ink);
+    --sidebar-accent: #232930;
+    --sidebar-accent-foreground: var(--paper);
+    --sidebar-border: var(--line);
+    --sidebar-ring: var(--amber);
+    color-scheme: dark;
+}
+
+@theme inline {
+    --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+    --font-heading: 'IBM Plex Sans Condensed', 'IBM Plex Sans', system-ui, sans-serif;
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+
+    /* Semantic status colors, usable as bg-status-pending, text-status-confirmed, ... */
+    --color-status-pending: var(--amber);
+    --color-status-confirmed: var(--teal);
+    --color-status-cancelled: var(--red);
+    --color-status-info: var(--sky);
+    --color-asphalt: var(--asphalt);
+    --color-panel: var(--panel);
+    --color-panel-raised: var(--panel-raised);
+
+    /* Radii follow hierarchy: panels round more than controls. */
+    --radius-sm: calc(var(--radius) - 2px);
+    --radius-md: var(--radius);
+    --radius-lg: calc(var(--radius) + 2px);
+    --radius-xl: calc(var(--radius) + 6px);
+}
+
+@layer base {
+    * {
+        @apply border-border outline-ring/60;
+    }
+    html {
+        @apply font-sans antialiased;
+    }
+    body {
+        @apply bg-background text-foreground;
+        font-feature-settings: "tnum" 1;
+    }
+    h1, h2, h3 {
+        @apply font-heading;
+        letter-spacing: -0.01em;
+    }
+    :focus-visible {
+        outline: 2px solid var(--amber);
+        outline-offset: 2px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            transition-duration: 0.01ms !important;
+        }
+    }
+}

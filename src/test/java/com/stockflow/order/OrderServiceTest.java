@@ -126,7 +126,7 @@ class OrderServiceTest {
     @Test
     void cancelConfirmedRestocks() {
         CustomerOrder order = orderWithItem();
-        order.confirm(NOW);
+        order.confirm(NOW, 99L);
         when(orderRepository.findByIdForUpdate(ORDER_ID)).thenReturn(Optional.of(order));
 
         orderService.cancel(CUSTOMER, ORDER_ID);
@@ -138,10 +138,10 @@ class OrderServiceTest {
     @Test
     void confirmRejectedStateTouchesNoStock() {
         CustomerOrder order = orderWithItem();
-        order.cancel(NOW, Duration.ofMinutes(5));
+        order.cancel(NOW, Duration.ofMinutes(5), 99L);
         when(orderRepository.findByIdForUpdate(ORDER_ID)).thenReturn(Optional.of(order));
 
-        assertThatThrownBy(() -> orderService.confirm(ORDER_ID)).isInstanceOf(InvalidOrderStateException.class);
+        assertThatThrownBy(() -> orderService.confirm(STAFF, ORDER_ID)).isInstanceOf(InvalidOrderStateException.class);
         verify(inventoryService, never()).fulfill(anyLong(), anyInt(), anyLong());
     }
 
@@ -149,7 +149,7 @@ class OrderServiceTest {
     void unknownOrderThrowsNotFound() {
         when(orderRepository.findByIdForUpdate(ORDER_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> orderService.confirm(ORDER_ID)).isInstanceOf(OrderNotFoundException.class);
+        assertThatThrownBy(() -> orderService.confirm(STAFF, ORDER_ID)).isInstanceOf(OrderNotFoundException.class);
     }
 
     @Test

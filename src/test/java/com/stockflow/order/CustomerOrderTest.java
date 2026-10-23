@@ -14,6 +14,7 @@ class CustomerOrderTest {
 
     private static final Instant T0 = Instant.parse("2026-01-15T10:00:00Z");
     private static final Duration WINDOW = Duration.ofMinutes(5);
+    private static final long ACTOR = 99L;
 
     @Test
     void newOrderIsPendingAndTotalsItsLines() {
@@ -32,7 +33,7 @@ class CustomerOrderTest {
     void confirmMovesPendingToConfirmed() {
         CustomerOrder order = pendingOrder();
 
-        order.confirm(T0);
+        order.confirm(T0, ACTOR);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
         assertThat(order.getConfirmedAt()).isEqualTo(T0);
@@ -41,19 +42,19 @@ class CustomerOrderTest {
     @Test
     void cannotConfirmTwiceOrConfirmCancelled() {
         CustomerOrder confirmed = pendingOrder();
-        confirmed.confirm(T0);
+        confirmed.confirm(T0, ACTOR);
         CustomerOrder cancelled = pendingOrder();
-        cancelled.cancel(T0, WINDOW);
+        cancelled.cancel(T0, WINDOW, ACTOR);
 
-        assertThatThrownBy(() -> confirmed.confirm(T0)).isInstanceOf(InvalidOrderStateException.class);
-        assertThatThrownBy(() -> cancelled.confirm(T0)).isInstanceOf(InvalidOrderStateException.class);
+        assertThatThrownBy(() -> confirmed.confirm(T0, ACTOR)).isInstanceOf(InvalidOrderStateException.class);
+        assertThatThrownBy(() -> cancelled.confirm(T0, ACTOR)).isInstanceOf(InvalidOrderStateException.class);
     }
 
     @Test
     void pendingOrderCanAlwaysBeCancelled() {
         CustomerOrder order = pendingOrder();
 
-        order.cancel(T0.plus(Duration.ofDays(30)), WINDOW);
+        order.cancel(T0.plus(Duration.ofDays(30)), WINDOW, ACTOR);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
     }
@@ -61,9 +62,9 @@ class CustomerOrderTest {
     @Test
     void confirmedOrderCanBeCancelledAtExactlyTheEndOfTheWindow() {
         CustomerOrder order = pendingOrder();
-        order.confirm(T0);
+        order.confirm(T0, ACTOR);
 
-        order.cancel(T0.plus(WINDOW), WINDOW);
+        order.cancel(T0.plus(WINDOW), WINDOW, ACTOR);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
     }
@@ -71,9 +72,9 @@ class CustomerOrderTest {
     @Test
     void confirmedOrderCannotBeCancelledOneMillisecondAfterTheWindow() {
         CustomerOrder order = pendingOrder();
-        order.confirm(T0);
+        order.confirm(T0, ACTOR);
 
-        assertThatThrownBy(() -> order.cancel(T0.plus(WINDOW).plusMillis(1), WINDOW))
+        assertThatThrownBy(() -> order.cancel(T0.plus(WINDOW).plusMillis(1), WINDOW, ACTOR))
                 .isInstanceOf(CancelWindowExpiredException.class);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
     }
@@ -81,14 +82,64 @@ class CustomerOrderTest {
     @Test
     void cancelledIsTerminal() {
         CustomerOrder order = pendingOrder();
-        order.cancel(T0, WINDOW);
+        order.cancel(T0, WINDOW, ACTOR);
 
-        assertThatThrownBy(() -> order.cancel(T0, WINDOW)).isInstanceOf(InvalidOrderStateException.class);
+        assertThatThrownBy(() -> order.cancel(T0, WINDOW, ACTOR)).isInstanceOf(InvalidOrderStateException.class);
     }
 
     private static CustomerOrder pendingOrder() {
         CustomerOrder order = new CustomerOrder(1L, "Ada", "ada@example.com", T0);
         order.addItem(1L, "A", "Apple", BigDecimal.ONE, 1);
         return order;
+    }
+
+    @Test
+    void fulfilmentMovesThroughEachStageInOrder() {
+        CustomerOrder order = pendingOrder();
+        order.confirm(T0, ACTOR);
+        order.pack(T0.plusSeconds(60), ACTOR);
+        order.ship(T0.plusSeconds(120), ACTOR);
+        order.deliver(T0.plusSeconds(180), ACTOR);
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.DELIVERED);
+        assertThat(order.getHistory()).extracting(OrderStatusEvent::getStatus).containsExactly(
+                OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PACKED, OrderStatus.SHIPPED, OrderStatus.DELIVERED);
+        assertThat(order.getHistory().getLast().getOccurredAt()).isEqualTo(T0.plusSeconds(180));
+        assertThat(order.getHistory().getLast().getActorId()).isEqualTo(ACTOR);
+    }
+
+    @Test
+    void stagesCannotBeSkipped() {
+        CustomerOrder pending = pendingOrder();
+        assertThatThrownBy(() -> pending.pack(T0, ACTOR)).isInstanceOf(InvalidOrderStateException.class);
+        assertThatThrownBy(() -> pending.ship(T0, ACTOR)).isInstanceOf(InvalidOrderStateException.class);
+
+        CustomerOrder confirmed = pendingOrder();
+        confirmed.confirm(T0, ACTOR);
+        assertThatThrownBy(() -> confirmed.deliver(T0, ACTOR)).isInstanceOf(InvalidOrderStateException.class);
+        assertThat(confirmed.getHistory()).hasSize(2);
+    }
+
+    @Test
+    void packedShippedAndDeliveredOrdersCannotBeCancelledEvenInsideTheWindow() {
+        CustomerOrder order = pendingOrder();
+        order.confirm(T0, ACTOR);
+        order.pack(T0.plusSeconds(10), ACTOR);
+
+        // Still inside the 5-minute window, but packing closes cancellation.
+        assertThatThrownBy(() -> order.cancel(T0.plusSeconds(20), WINDOW, ACTOR))
+                .isInstanceOf(InvalidOrderStateException.class)
+                .hasMessageContaining("PACKED");
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PACKED);
+    }
+
+    @Test
+    void newOrderStartsItsHistoryWithTheCustomerAsActor() {
+        CustomerOrder order = pendingOrder();
+
+        assertThat(order.getHistory()).singleElement().satisfies(event -> {
+            assertThat(event.getStatus()).isEqualTo(OrderStatus.PENDING);
+            assertThat(event.getActorId()).isEqualTo(1L);
+        });
     }
 }

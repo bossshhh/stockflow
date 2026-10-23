@@ -49,6 +49,7 @@ public abstract class AbstractIntegrationTest {
     /** Staff/admin actions never look their account up, so these ids need no database row. */
     protected static final long STAFF_ID = 900_001L;
     protected static final long ADMIN_ID = 900_002L;
+    protected static final long WAREHOUSE_ID = 900_003L;
     protected static final CurrentUser STAFF_ACTOR = new CurrentUser(STAFF_ID, Role.STAFF);
     protected static final String TEST_PASSWORD = "correct-horse-battery";
 
@@ -89,6 +90,10 @@ public abstract class AbstractIntegrationTest {
 
     protected static RequestPostProcessor staff() {
         return actor(STAFF_ID, Role.STAFF);
+    }
+
+    protected static RequestPostProcessor warehouse() {
+        return actor(WAREHOUSE_ID, Role.WAREHOUSE);
     }
 
     protected static RequestPostProcessor admin() {

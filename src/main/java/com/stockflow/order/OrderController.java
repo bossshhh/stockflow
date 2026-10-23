@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -45,6 +47,7 @@ public class OrderController {
 
     @Operation(summary = "Place an order (CUSTOMER): reserves stock for every item, all or nothing")
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<OrderResponse> create(@AuthenticationPrincipal Jwt jwt,
                                                 @Valid @RequestBody CreateOrderRequest request) {
         OrderResponse created = orderService.create(CurrentUser.from(jwt), request);
@@ -85,12 +88,30 @@ public class OrderController {
     /** Status changes are actions (POST), not field edits (PUT/PATCH): each has rules and side effects. */
     @Operation(summary = "Confirm a PENDING order (STAFF): reserved stock leaves the warehouse")
     @PostMapping("/{id}/confirm")
-    public ResponseEntity<OrderResponse> confirm(@PathVariable long id) {
-        return ResponseEntity.ok(orderService.confirm(id));
+    public ResponseEntity<OrderResponse> confirm(@AuthenticationPrincipal Jwt jwt, @PathVariable long id) {
+        return ResponseEntity.ok(orderService.confirm(CurrentUser.from(jwt), id));
+    }
+
+    @Operation(summary = "Mark a CONFIRMED order as packed (WAREHOUSE or STAFF). It can no longer be cancelled")
+    @PostMapping("/{id}/pack")
+    public ResponseEntity<OrderResponse> pack(@AuthenticationPrincipal Jwt jwt, @PathVariable long id) {
+        return ResponseEntity.ok(orderService.pack(CurrentUser.from(jwt), id));
+    }
+
+    @Operation(summary = "Mark a PACKED order as shipped (WAREHOUSE or STAFF)")
+    @PostMapping("/{id}/ship")
+    public ResponseEntity<OrderResponse> ship(@AuthenticationPrincipal Jwt jwt, @PathVariable long id) {
+        return ResponseEntity.ok(orderService.ship(CurrentUser.from(jwt), id));
+    }
+
+    @Operation(summary = "Mark a SHIPPED order as delivered (WAREHOUSE or STAFF)")
+    @PostMapping("/{id}/deliver")
+    public ResponseEntity<OrderResponse> deliver(@AuthenticationPrincipal Jwt jwt, @PathVariable long id) {
+        return ResponseEntity.ok(orderService.deliver(CurrentUser.from(jwt), id));
     }
 
     @Operation(summary = "Cancel an order (customers: own orders only): PENDING releases its reservation; "
-            + "CONFIRMED (within 5 minutes) is restocked")
+            + "CONFIRMED (within 5 minutes) is restocked; PACKED or later cannot be cancelled")
     @PostMapping("/{id}/cancel")
     public ResponseEntity<OrderResponse> cancel(@AuthenticationPrincipal Jwt jwt, @PathVariable long id) {
         return ResponseEntity.ok(orderService.cancel(CurrentUser.from(jwt), id));

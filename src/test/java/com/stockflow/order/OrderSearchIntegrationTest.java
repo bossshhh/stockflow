@@ -47,11 +47,11 @@ class OrderSearchIntegrationTest extends AbstractIntegrationTest {
         long product = productWithStock("WID-001", "10.00", 100);
         placeOrder(product, ada, 2);
         clock.advance(Duration.ofHours(1));
-        orderService.confirm(placeOrder(product, bob, 3));
+        orderService.confirm(STAFF_ACTOR, placeOrder(product, bob, 3));
         clock.advance(Duration.ofHours(1));
         orderService.cancel(STAFF_ACTOR, placeOrder(product, ada, 1));
         clock.advance(Duration.ofHours(1));
-        orderService.confirm(placeOrder(product, bob, 5));
+        orderService.confirm(STAFF_ACTOR, placeOrder(product, bob, 5));
     }
 
     @Test
@@ -102,7 +102,7 @@ class OrderSearchIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void invalidInputsReturn400() throws Exception {
-        mockMvc.perform(get(ORDERS).param("status", "SHIPPED"))
+        mockMvc.perform(get(ORDERS).param("status", "LOST"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
         mockMvc.perform(get(ORDERS).param("createdFrom", "yesterday"))

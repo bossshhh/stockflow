@@ -9,6 +9,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 public record CreateProductRequest(
 
         @NotBlank
@@ -20,6 +22,7 @@ public record CreateProductRequest(
         String name,
 
         @Size(max = ProductValidation.DESCRIPTION_MAX_LENGTH)
+        @Schema(nullable = true)
         String description,
 
         @NotNull

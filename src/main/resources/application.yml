@@ -38,6 +38,8 @@ spring:
 
 springdoc:
   paths-to-match: /api/**
+  # Responses are JSON; without this the spec says "*/*" and generated clients cannot type them.
+  default-produces-media-type: application/json
   swagger-ui:
     path: /swagger-ui.html
     operations-sorter: method

@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Size;
 
 import com.stockflow.user.Role;
 
-/** Admin-only creation of STAFF or ADMIN accounts. Customers register themselves. */
+/** Admin-only creation of WAREHOUSE, STAFF or ADMIN accounts. Customers register themselves. */
 public record CreateUserRequest(
 
         @NotBlank

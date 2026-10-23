@@ -62,7 +62,7 @@ class OrderConcurrencyTest extends AbstractIntegrationTest {
 
         List<Outcome> outcomes = runConcurrently(THREADS, i -> () -> {
             try {
-                orderService.confirm(orderId);
+                orderService.confirm(STAFF_ACTOR, orderId);
                 return Outcome.SUCCEEDED;
             } catch (InvalidOrderStateException ex) {
                 return Outcome.REJECTED;

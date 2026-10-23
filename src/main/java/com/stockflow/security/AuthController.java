@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -49,6 +50,7 @@ public class AuthController {
 
     @Operation(summary = "Create a CUSTOMER account (password: 12-72 characters)")
     @PostMapping("/register")
+    @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.register(request));
     }
@@ -70,6 +72,7 @@ public class AuthController {
 
     @Operation(summary = "Log out: revokes this session's refresh tokens and deletes the cookie")
     @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> logout(
             @Parameter(hidden = true) @CookieValue(name = RefreshTokenCookies.COOKIE_NAME, required = false)
             String refreshToken) {

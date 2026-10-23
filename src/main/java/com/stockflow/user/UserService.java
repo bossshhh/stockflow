@@ -40,11 +40,12 @@ public class UserService {
         return create(request.email(), request.password(), request.fullName(), Role.CUSTOMER);
     }
 
-    /** Admin creates STAFF or ADMIN accounts. CUSTOMER accounts come only from self-registration. */
+    /** Admin creates WAREHOUSE, STAFF or ADMIN accounts. CUSTOMER accounts come only from self-registration. */
     @Transactional
     public UserResponse createStaffAccount(CreateUserRequest request) {
         if (request.role() == Role.CUSTOMER) {
-            throw new InvalidRequestParameterException("Customers register themselves; role must be STAFF or ADMIN");
+            throw new InvalidRequestParameterException(
+                    "Customers register themselves; role must be WAREHOUSE, STAFF or ADMIN");
         }
         return create(request.email(), request.password(), request.fullName(), request.role());
     }
