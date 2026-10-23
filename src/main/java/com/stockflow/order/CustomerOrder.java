@@ -53,7 +53,7 @@ public class CustomerOrder {
     @Column(nullable = false, length = 16)
     private OrderStatus status;
 
-    @Column(name = "total_amount", nullable = false, precision = 14, scale = 2)
+    @Column(name = "total_amount", nullable = false, precision = 18, scale = 2)
     private BigDecimal totalAmount;
 
     @Column(name = "created_at", nullable = false, updatable = false)

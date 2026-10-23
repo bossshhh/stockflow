@@ -7,8 +7,10 @@ import jakarta.servlet.http.HttpServletRequest;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -88,6 +90,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     public ResponseEntity<ApiError> handleUnsupportedMediaType(HttpMediaTypeNotSupportedException ex, HttpServletRequest request) {
         return build(ErrorCode.UNSUPPORTED_MEDIA_TYPE, "Content type is not supported; use application/json", request, List.of());
+    }
+
+    /**
+     * The database cannot be reached (down, restarting, pool exhausted). Temporary by nature, so 503 tells
+     * clients they may retry; the cause is logged, never returned.
+     */
+    @ExceptionHandler({CannotCreateTransactionException.class, DataAccessResourceFailureException.class})
+    public ResponseEntity<ApiError> handleDatabaseUnavailable(Exception ex, HttpServletRequest request) {
+        log.warn("Database unavailable on {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+        return build(ErrorCode.SERVICE_UNAVAILABLE, "The service is temporarily unavailable; please retry shortly",
+                request, List.of());
     }
 
     @ExceptionHandler(Exception.class)

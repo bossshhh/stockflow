@@ -27,7 +27,7 @@ customers order the last unit at the same moment.
   theft detection (a replayed token revokes the whole session). BCrypt, role-based
   access (customer / staff / admin) plus ownership checks: customers only ever see their own orders
   (and get 404, not 403, for others').
-- **128 automated tests** (unit, integration against real PostgreSQL, concurrency, security), run on
+- **135 automated tests** (unit, integration against real PostgreSQL, concurrency, security), run on
   every push by GitHub Actions.
 
 ## Architecture

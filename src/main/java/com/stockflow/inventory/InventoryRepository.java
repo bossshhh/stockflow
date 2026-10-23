@@ -61,6 +61,10 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
      *   <li>fulfil q: (-q, -q) passes only if at least q is reserved</li>
      * </ul>
      *
+     * Also stops on-hand stock from GROWING past {@code maxOnHand}. Decreases are always allowed, so a row that
+     * is somehow above the ceiling can still be corrected. The cap is checked in bigint arithmetic, so even a
+     * row near the INTEGER limit cannot overflow while the condition is evaluated.
+     *
      * @return 1 if applied, 0 if the product has no stock row or the change would break an invariant
      */
     @Modifying(flushAutomatically = true)
@@ -72,8 +76,9 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
             WHERE i.productId = :productId
               AND i.reserved + :reservedChange >= 0
               AND i.onHand + :onHandChange >= i.reserved + :reservedChange
+              AND (:onHandChange <= 0 OR CAST(i.onHand AS Long) + :onHandChange <= :maxOnHand)
             """)
-    int applyChange(long productId, int onHandChange, int reservedChange, Instant now);
+    int applyChange(long productId, int onHandChange, int reservedChange, long maxOnHand, Instant now);
 
     @Query(STOCK_LEVEL_SELECT + "WHERE i.productId = :productId")
     Optional<InventoryResponse> findStockLevel(long productId);

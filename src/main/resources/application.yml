@@ -28,6 +28,13 @@ spring:
         max-page-size: 100
   lifecycle:
     timeout-per-shutdown-phase: 30s
+  jackson:
+    # Strict request contract (QA findings): reject 1.5 for an integer field instead of silently
+    # truncating it to 1, and reject numbers sent as strings ("12.50") instead of converting them.
+    deserialization:
+      accept-float-as-int: false
+    mapper:
+      allow-coercion-of-scalars: false
 
 springdoc:
   paths-to-match: /api/**

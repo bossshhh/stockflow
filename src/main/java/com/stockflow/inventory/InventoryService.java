@@ -33,6 +33,12 @@ public class InventoryService {
 
     private static final Logger log = LoggerFactory.getLogger(InventoryService.class);
 
+    /**
+     * Ceiling for on-hand stock of one product. Far above any real warehouse, and far enough below the
+     * INTEGER maximum (2,147,483,647) that on_hand plus any allowed change can never overflow.
+     */
+    static final long MAX_ON_HAND = 1_000_000_000L;
+
     private static final Sort STOCK_LEVEL_ORDER = Sort.by("productId");
     private static final Sort NEWEST_FIRST = Sort.by(Sort.Direction.DESC, "id");
 
@@ -80,8 +86,11 @@ public class InventoryService {
         }
         InventoryResponse updated = applyChange(productId, MovementType.ADJUSTMENT, delta, 0, null,
                 request.reason().strip(),
-                current -> new InsufficientStockException("Cannot change on-hand stock of product " + productId
-                        + " by " + delta + ": on hand " + current.onHand() + ", reserved " + current.reserved()));
+                current -> delta > 0
+                        ? new StockLimitExceededException(productId, current.onHand(), MAX_ON_HAND)
+                        : new InsufficientStockException("Cannot change on-hand stock of product " + productId
+                                + " by " + delta + ": on hand " + current.onHand() + ", reserved "
+                                + current.reserved()));
         log.info("Adjusted stock productId={} delta={} onHand={}", productId, delta, updated.onHand());
         return updated;
     }
@@ -157,7 +166,7 @@ public class InventoryService {
                                           Long orderId, String reason,
                                           Function<InventoryResponse, RuntimeException> rejection) {
         Instant now = clock.instant();
-        if (inventoryRepository.applyChange(productId, onHandChange, reservedChange, now) == 0) {
+        if (inventoryRepository.applyChange(productId, onHandChange, reservedChange, MAX_ON_HAND, now) == 0) {
             throw rejection.apply(getStockLevel(productId));
         }
         // Our UPDATE holds the row lock until commit, so this read sees exactly the state we produced.

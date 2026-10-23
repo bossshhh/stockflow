@@ -48,7 +48,7 @@ class InventoryServiceTest {
 
     @Test
     void adjustRecordsMovementWithResultingLevels() {
-        when(inventoryRepository.applyChange(PRODUCT_ID, 10, 0, NOW)).thenReturn(1);
+        when(inventoryRepository.applyChange(PRODUCT_ID, 10, 0, InventoryService.MAX_ON_HAND, NOW)).thenReturn(1);
         when(inventoryRepository.findStockLevel(PRODUCT_ID)).thenReturn(Optional.of(level(10, 3)));
 
         InventoryResponse result = inventoryService.adjust(PRODUCT_ID, new StockAdjustmentRequest(10, " delivery "));
@@ -70,12 +70,12 @@ class InventoryServiceTest {
     void adjustRejectsZeroWithoutTouchingStock() {
         assertThatThrownBy(() -> inventoryService.adjust(PRODUCT_ID, new StockAdjustmentRequest(0, "nothing")))
                 .isInstanceOf(InvalidRequestParameterException.class);
-        verify(inventoryRepository, never()).applyChange(anyLong(), anyInt(), anyInt(), any());
+        verify(inventoryRepository, never()).applyChange(anyLong(), anyInt(), anyInt(), anyLong(), any());
     }
 
     @Test
     void adjustRejectedByConditionThrowsInsufficientStockAndRecordsNothing() {
-        when(inventoryRepository.applyChange(PRODUCT_ID, -5, 0, NOW)).thenReturn(0);
+        when(inventoryRepository.applyChange(PRODUCT_ID, -5, 0, InventoryService.MAX_ON_HAND, NOW)).thenReturn(0);
         when(inventoryRepository.findStockLevel(PRODUCT_ID)).thenReturn(Optional.of(level(4, 2)));
 
         assertThatThrownBy(() -> inventoryService.adjust(PRODUCT_ID, new StockAdjustmentRequest(-5, "damaged")))
@@ -87,7 +87,7 @@ class InventoryServiceTest {
 
     @Test
     void adjustOnUnknownProductThrowsNotFound() {
-        when(inventoryRepository.applyChange(PRODUCT_ID, 1, 0, NOW)).thenReturn(0);
+        when(inventoryRepository.applyChange(PRODUCT_ID, 1, 0, InventoryService.MAX_ON_HAND, NOW)).thenReturn(0);
         when(inventoryRepository.findStockLevel(PRODUCT_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> inventoryService.adjust(PRODUCT_ID, new StockAdjustmentRequest(1, "x")))

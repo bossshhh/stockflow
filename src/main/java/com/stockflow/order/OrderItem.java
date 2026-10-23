@@ -44,7 +44,7 @@ public class OrderItem {
     @Column(nullable = false, updatable = false)
     private int quantity;
 
-    @Column(name = "line_total", nullable = false, updatable = false, precision = 14, scale = 2)
+    @Column(name = "line_total", nullable = false, updatable = false, precision = 18, scale = 2)
     private BigDecimal lineTotal;
 
     protected OrderItem() {

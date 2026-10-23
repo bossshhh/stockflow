@@ -77,6 +77,7 @@ public class OrderService {
     public OrderResponse create(CurrentUser customer, CreateOrderRequest request) {
         // TreeMap: duplicates merged AND iterated in ascending product id (the lock order).
         SortedMap<Long, Integer> quantities = mergeQuantities(request.items());
+        requireMergedQuantitiesWithinLimit(quantities);
         Map<Long, ProductResponse> products = productService.getByIds(quantities.keySet()).stream()
                 .collect(Collectors.toMap(ProductResponse::id, Function.identity()));
 
@@ -194,6 +195,19 @@ public class OrderService {
 
     private static List<OrderItem> itemsInLockOrder(CustomerOrder order) {
         return order.getItems().stream().sorted(LOCK_ORDER).toList();
+    }
+
+    /**
+     * Bean Validation checks each request line; duplicates are merged afterwards, so 6,000 + 6,000 of one
+     * product would otherwise slip past the 10,000 limit.
+     */
+    private static void requireMergedQuantitiesWithinLimit(SortedMap<Long, Integer> quantities) {
+        quantities.forEach((productId, quantity) -> {
+            if (quantity > OrderItemRequest.MAX_QUANTITY) {
+                throw new InvalidRequestParameterException("Total quantity for product " + productId
+                        + " is " + quantity + "; at most " + OrderItemRequest.MAX_QUANTITY + " per order");
+            }
+        });
     }
 
     private static SortedMap<Long, Integer> mergeQuantities(List<OrderItemRequest> items) {
