@@ -48,6 +48,16 @@ public class GlobalExceptionHandler {
         return build(ex.getErrorCode(), ex.getMessage(), request, List.of());
     }
 
+    /** A rate limit was hit: 429 with Retry-After, so well-behaved clients know when to come back. */
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<ApiError> handleTooManyRequests(TooManyRequestsException ex, HttpServletRequest request) {
+        log.info("Rate limit hit on {} {}", request.getMethod(), request.getRequestURI());
+        ResponseEntity<ApiError> response = build(ex.getErrorCode(), ex.getMessage(), request, List.of());
+        return ResponseEntity.status(response.getStatusCode())
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfter().toSeconds()))
+                .body(response.getBody());
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest request) {
         List<ApiError.FieldViolation> violations = ex.getBindingResult().getFieldErrors().stream()

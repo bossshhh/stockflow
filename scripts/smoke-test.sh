@@ -81,6 +81,20 @@ WRONG_PW_MSG="$(field .message)"
 check "wrong password -> 401 INVALID_CREDENTIALS" "401 INVALID_CREDENTIALS" "$STATUS $(field .code)"
 request POST "$API/auth/login" "" "{\"email\":\"nobody-$RUN@example.com\",\"password\":\"$PASSWORD\"}"
 check "unknown email gives the identical message" "$WRONG_PW_MSG" "$(field .message)"
+# Password guessing on one account: 5 failures are allowed (production default), then 429 even with the
+# right password, with Retry-After. Uses this run's own throwaway account, so reruns are not affected.
+request POST "$API/auth/register" "" "{\"email\":\"guess-$RUN@example.com\",\"password\":\"$PASSWORD\",\"fullName\":\"Guess $RUN\"}"
+for i in 1 2 3 4 5; do
+  request POST "$API/auth/login" "" "{\"email\":\"guess-$RUN@example.com\",\"password\":\"wrong-password-$i\"}"
+done
+check "5th wrong password is still a normal 401" "401" "$STATUS"
+RETRY_AFTER="$(curl -s -o /tmp/stockflow-smoke-body -D - -X POST "$API/auth/login" -H "Content-Type: application/json" \
+  -d "{\"email\":\"guess-$RUN@example.com\",\"password\":\"$PASSWORD\"}" | tr -d '\r' | awk -F': ' 'tolower($1)=="retry-after"{print $2}')"
+BODY="$(cat /tmp/stockflow-smoke-body)"
+# Real time passes during the 5 BCrypt checks, so the bucket has refilled a little: up to 180 s (one attempt
+# back every 3 minutes), but never 0.
+check "6th attempt, even with the right password -> 429 + Retry-After (1-180 s)" "TOO_MANY_REQUESTS true" \
+  "$(field .code) $([[ "$RETRY_AFTER" -ge 1 && "$RETRY_AFTER" -le 180 ]] && echo true || echo false)"
 CUST_A="$(login "$CUST_A_EMAIL" "$PASSWORD")"
 CUST_B="$(login "$CUST_B_EMAIL" "$PASSWORD")"
 check "customer login returns a token" "true" "$([[ ${#CUST_A} -gt 50 ]] && echo true || echo false)"

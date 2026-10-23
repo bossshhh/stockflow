@@ -110,7 +110,8 @@ public class UserService {
         }
     }
 
-    static String normalizeEmail(String email) {
+    /** The form emails are stored and compared in; login rate limits are keyed by it too. */
+    public static String normalizeEmail(String email) {
         return email.strip().toLowerCase(Locale.ROOT);
     }
 }

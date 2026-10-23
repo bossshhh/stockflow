@@ -21,6 +21,7 @@
         <java.version>21</java.version>
         <!-- springdoc 2.8.x is the line for Spring Boot 3.x (3.x targets Boot 4). -->
         <springdoc.version>2.8.17</springdoc.version>
+        <bucket4j.version>8.14.0</bucket4j.version>
         <!-- Filled by maven-dependency-plugin:properties; used to attach Mockito as a Java agent. -->
         <argLine></argLine>
     </properties>
@@ -45,6 +46,16 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <!-- Login / registration rate limiting: token buckets, kept in a size-capped Caffeine cache. -->
+        <dependency>
+            <groupId>com.bucket4j</groupId>
+            <artifactId>bucket4j_jdk17-core</artifactId>
+            <version>${bucket4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
         </dependency>
         <!-- Spring's own JWT validation (Nimbus); no hand-written token parsing. -->
         <dependency>

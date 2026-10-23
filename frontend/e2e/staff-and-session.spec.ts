@@ -1,6 +1,23 @@
 import { expect, test } from '@playwright/test'
 
-import { failOnBrowserErrors, productName, registerCustomer, signIn, staffEmail } from './support'
+import { E2E_PASSWORD, failOnBrowserErrors, productName, registerCustomer, signIn, staffEmail } from './support'
+
+test('password guessing: after 5 wrong passwords the login page asks the user to wait', async ({ page, baseURL }) => {
+  const email = await registerCustomer(baseURL ?? '')
+  await page.goto('/login')
+  await page.getByLabel('Email').fill(email)
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    await page.getByLabel('Password').fill(`wrong-password-${attempt}`)
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page.getByText(/email or password is incorrect/i)).toBeVisible()
+  }
+
+  // Even the right password must wait now; the message says for how long.
+  await page.getByLabel('Password').fill(E2E_PASSWORD)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page.getByText(/Too many attempts; try again in \d+ minutes?/)).toBeVisible()
+  await expect(page).toHaveURL(/\/login$/)
+})
 
 test.describe('staff tools', () => {
   test('the overview shows figures, the stock chart and the queues', async ({ page }) => {

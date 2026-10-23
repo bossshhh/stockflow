@@ -2,6 +2,7 @@ package com.stockflow.security;
 
 import java.time.Clock;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 import org.springframework.http.HttpHeaders;
@@ -51,15 +52,16 @@ public class AuthController {
     @Operation(summary = "Create a CUSTOMER account (password: 12-72 characters)")
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
-    public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(userService.register(request));
+    public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request,
+                                                 HttpServletRequest httpRequest) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request, httpRequest.getRemoteAddr()));
     }
 
     @Operation(summary = "Log in. Returns an access token (paste it into 'Authorize' in Swagger) and sets the "
             + "refresh token as an HttpOnly cookie")
     @PostMapping("/login")
-    public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
-        return withSessionCookie(authService.login(request));
+    public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+        return withSessionCookie(authService.login(request, httpRequest.getRemoteAddr()));
     }
 
     @Operation(summary = "New access token from the refresh token cookie. The cookie is rotated on every use")

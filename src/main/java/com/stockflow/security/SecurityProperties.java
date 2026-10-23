@@ -21,6 +21,7 @@ public record SecurityProperties(
         @Valid @NotNull RefreshSettings refresh,
         @Min(4) @Max(31) int bcryptStrength,
         @Valid @NotNull CorsSettings cors,
+        @Valid @NotNull RateLimitSettings rateLimit,
         BootstrapAdmin bootstrapAdmin) {
 
     /**
@@ -44,6 +45,19 @@ public record SecurityProperties(
 
     /** Exact origins allowed to call the API from a browser. Never "*". */
     public record CorsSettings(@NotEmpty List<String> allowedOrigins) {
+    }
+
+    /**
+     * @param failedLoginsPerEmail guessing one account's password
+     * @param failedLoginsPerIp    one client trying many accounts (credential stuffing)
+     * @param registrationsPerIp   scripted mass sign-ups
+     */
+    public record RateLimitSettings(@Valid @NotNull Limit failedLoginsPerEmail, @Valid @NotNull Limit failedLoginsPerIp,
+                                    @Valid @NotNull Limit registrationsPerIp) {
+    }
+
+    /** At most {@code attempts} per {@code per}; used-up attempts come back gradually over that period. */
+    public record Limit(@Min(1) int attempts, @NotNull Duration per) {
     }
 
     /** Optional first ADMIN account; ignored when the email or password is blank. */

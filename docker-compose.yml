@@ -38,6 +38,11 @@ services:
       REFRESH_COOKIE_SECURE: "false"
       # Swagger is off in production by default; on here because this setup is for local use.
       API_DOCS_ENABLED: "true"
+      # Locally (and in CI) every request reaches the API from one address, the Docker network gateway,
+      # and the smoke and browser tests register many accounts. So the PER-IP limits are raised here;
+      # the per-email login limit keeps its production value. Set these in .env to try the real limits.
+      LOGIN_FAILURES_PER_IP: ${LOGIN_FAILURES_PER_IP:-1000}
+      REGISTRATIONS_PER_IP: ${REGISTRATIONS_PER_IP:-1000}
     ports:
       - "127.0.0.1:8080:8080"
       - "127.0.0.1:8081:8081"

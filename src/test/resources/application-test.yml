@@ -11,3 +11,9 @@ stockflow:
       secret: dGVzdC1vbmx5LWp3dC1zZWNyZXQtYXQtbGVhc3QtMzItYnl0ZXMtbG9uZyE=
     # Minimum BCrypt cost: hashing strength does not matter in tests, speed does.
     bcrypt-strength: 4
+    # Effectively off: every test request comes from 127.0.0.1 and many tests log in or register.
+    # AuthRateLimitIntegrationTest sets real limits for itself.
+    rate-limit:
+      failed-logins-per-email: {attempts: 100000, per: 1m}
+      failed-logins-per-ip: {attempts: 100000, per: 1m}
+      registrations-per-ip: {attempts: 100000, per: 1m}
