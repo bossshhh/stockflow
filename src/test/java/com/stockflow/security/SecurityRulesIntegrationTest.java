@@ -1,5 +1,7 @@
 package com.stockflow.security;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -12,6 +14,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 
 import com.stockflow.AbstractIntegrationTest;
+import com.stockflow.common.web.ApiHeaders;
 
 /** The role matrix from SecurityConfig, checked rule by rule. */
 class SecurityRulesIntegrationTest extends AbstractIntegrationTest {
@@ -113,5 +116,16 @@ class SecurityRulesIntegrationTest extends AbstractIntegrationTest {
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
                 .andExpect(status().isForbidden())
                 .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
+    }
+
+    @Test
+    void corsLetsTheUiSendAnIdempotencyKeyAndReadTheReplayHeader() throws Exception {
+        mockMvc.perform(options("/api/v1/orders")
+                        .header(HttpHeaders.ORIGIN, "http://localhost:5173")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "authorization,content-type,idempotency-key"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, containsStringIgnoringCase(ApiHeaders.IDEMPOTENCY_KEY)))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, containsString(ApiHeaders.IDEMPOTENT_REPLAYED)));
     }
 }

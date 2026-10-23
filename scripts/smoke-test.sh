@@ -177,6 +177,29 @@ rm -rf "$RACE_DIR"
 check "exactly 1 order won, 9 got 409" "1 9" "$WINNERS $LOSERS"
 check "stock: 1 on hand, 1 reserved, 0 available" "1/1/0" "$(stock "$P2")"
 
+echo; echo "7b. Safe retry: 10 parallel requests with ONE Idempotency-Key (real HTTP)"
+request POST "$API/products" "$STAFF" "{\"sku\":\"idem-$RUN\",\"name\":\"Retry Lamp\",\"price\":20}"
+P3="$(field .id)"
+request POST "$API/inventory/$P3/adjustments" "$STAFF" '{"quantityChange":10,"reason":"Retry test"}'
+IDEM_KEY="smoke-$RUN-checkout"
+IDEM_DIR="$(mktemp -d)"
+for i in $(seq 1 10); do
+  curl -s -o "$IDEM_DIR/body-$i" -w "%{http_code}\n" -X POST "$API/orders" -H "Authorization: Bearer $CUST_B" \
+    -H "Idempotency-Key: $IDEM_KEY" -H "Content-Type: application/json" \
+    -d "{\"items\":[{\"productId\":$P3,\"quantity\":2}]}" > "$IDEM_DIR/status-$i" &
+done
+wait
+CREATED="$(cat "$IDEM_DIR"/status-* | grep -c '^201$')"
+REPLAYED="$(cat "$IDEM_DIR"/status-* | grep -c '^200$')"
+DISTINCT_IDS="$(cat "$IDEM_DIR"/body-* | jq -r .id | sort -u | wc -l | tr -d ' ')"
+rm -rf "$IDEM_DIR"
+check "1 created, 9 replayed the same order" "1 9 1" "$CREATED $REPLAYED $DISTINCT_IDS"
+check "stock reserved once: 10 on hand, 2 reserved" "10/2/8" "$(stock "$P3")"
+STATUS="$(curl -s -o /tmp/stockflow-smoke-body -w "%{http_code}" -X POST "$API/orders" -H "Authorization: Bearer $CUST_B" \
+  -H "Idempotency-Key: $IDEM_KEY" -H "Content-Type: application/json" -d "{\"items\":[{\"productId\":$P3,\"quantity\":5}]}")"
+BODY="$(cat /tmp/stockflow-smoke-body)"
+check "same key, different items -> 422" "422 IDEMPOTENCY_KEY_REUSED" "$STATUS $(field .code)"
+
 echo; echo "8. Search, history and reports"
 request GET "$API/orders?status=CANCELLED&customerEmail=$CUST_A_EMAIL" "$STAFF"
 check "staff search: A's cancelled orders" "2" "$(field .totalElements)"

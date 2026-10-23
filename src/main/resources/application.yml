@@ -49,6 +49,8 @@ stockflow:
   orders:
     # A CONFIRMED order can be cancelled while now <= confirmedAt + this window (inclusive).
     confirmed-cancel-window: ${ORDER_CANCEL_WINDOW:5m}
+    # A retried order with the same Idempotency-Key returns the first order while now <= createdAt + this.
+    idempotency-key-ttl: ${ORDER_IDEMPOTENCY_KEY_TTL:24h}
   security:
     jwt:
       # Base64 of at least 32 random bytes (HS256). No default on purpose: the app refuses to start without it.

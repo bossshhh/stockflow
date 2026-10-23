@@ -23,13 +23,17 @@ customers order the last unit at the same moment.
   reserve on create, deduct on confirm, release or restock on cancel (confirmed orders only within a
   5-minute window, tested to the millisecond with an injectable clock; never once packed). Every status
   change is recorded with who and when, and drives the customer's tracking timeline.
+- **Safe retries.** `POST /orders` accepts an `Idempotency-Key`: a retried request (lost response,
+  double submit) returns the order already placed instead of placing it twice. The key is claimed with
+  one `INSERT ... ON CONFLICT` before any stock is touched, so concurrent duplicates wait on the
+  database and replay; 10 threads with one key create exactly one order.
 - **Full audit trail.** Every stock change writes a movement row (type, delta, resulting levels,
   order id) in the same transaction.
 - **Security.** Short-lived JWT access tokens plus rotating refresh tokens in an HttpOnly cookie with
   theft detection (a replayed token revokes the whole session). BCrypt, role-based
   access (customer / staff / admin) plus ownership checks: customers only ever see their own orders
   (and get 404, not 403, for others').
-- **149 backend + 32 frontend tests, plus 14 browser tests** (unit, integration against real PostgreSQL,
+- **159 backend + 38 frontend tests, plus 15 browser tests** (unit, integration against real PostgreSQL,
   concurrency, security, end to end in Chromium). On every push GitHub Actions also starts the whole
   Docker stack from scratch and runs the browser tests and the API smoke test against it.
 
@@ -101,8 +105,8 @@ Run all tests (Docker must be running, Testcontainers starts PostgreSQL):
 ./mvnw verify
 ```
 
-End-to-end smoke test against the running system (76 checks over real HTTP, every role, including a
-live race of 10 parallel orders for the last unit):
+End-to-end smoke test against the running system (79 checks over real HTTP, every role, including a
+live race of 10 parallel orders for the last unit and 10 parallel retries with one idempotency key):
 
 ```bash
 scripts/smoke-test.sh            # defaults to http://localhost:8080
@@ -125,7 +129,7 @@ npm run e2e                      # defaults to http://localhost:3000
 | Catalog | `GET /api/v1/catalog?q=`, `GET /api/v1/catalog/{id}` (active products, `inStock` flag, no counts) | public |
 | Products | `GET/POST /api/v1/products`, `GET/PUT/DELETE /api/v1/products/{id}` | read: all; write: staff |
 | Inventory | `GET /api/v1/inventory?q=` (name or SKU), `GET /{productId}`, `POST /{productId}/adjustments`, `GET /{productId}/movements`, `GET /low-stock`, `GET /valuation` | staff |
-| Orders | `POST /api/v1/orders`, `GET /api/v1/orders` (search), `GET /{id}` (with status history), `POST /{id}/confirm`, `POST /{id}/cancel`, `GET /summary` | customers: own orders; staff: all |
+| Orders | `POST /api/v1/orders` (optional `Idempotency-Key`), `GET /api/v1/orders` (search), `GET /{id}` (with status history), `POST /{id}/confirm`, `POST /{id}/cancel`, `GET /summary` | customers: own orders; staff: all |
 | Fulfilment | `POST /api/v1/orders/{id}/pack`, `/ship`, `/deliver` | warehouse and staff |
 | Admin | `POST /api/v1/admin/users` | admin |
 
@@ -159,5 +163,6 @@ Every error has the same shape, with a stable machine-readable `code`:
 - [x] Fulfilment tracking: packed / shipped / delivered, status history, warehouse role
 - [x] UI served by nginx in Docker Compose; Playwright browser tests in CI
 - [ ] Carrier integration (DHL / UPS tracking numbers)
-- [ ] Hardening: idempotent order placement, lock timeouts, login rate limiting, token revocation
+- [x] Idempotent order placement (`Idempotency-Key`)
+- [ ] Hardening: lock timeouts, login rate limiting, token revocation
 - [ ] Load test, observability, audit trail, multiple warehouses, deployment

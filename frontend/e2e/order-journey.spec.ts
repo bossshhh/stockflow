@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Page } from '@playwright/test'
 
 import {
+  addProductAndOpenCart,
   failOnBrowserErrors,
   newCustomerEmail,
   placeOrder,
@@ -17,6 +18,36 @@ async function signedInPage(browser: Browser, email: string): Promise<Page> {
 }
 
 test.describe('order journey', () => {
+  test('a lost response on "Place order" does not create a second order when the customer retries', async ({ page, baseURL }) => {
+    await signIn(page, await registerCustomer(baseURL ?? ''))
+    await addProductAndOpenCart(page)
+
+    // The first request reaches the server and the order is placed, but the browser never gets the answer.
+    let dropped = false
+    await page.route('**/api/v1/orders', async (route) => {
+      if (route.request().method() !== 'POST' || dropped) return route.fallback()
+      dropped = true
+      await route.fetch()
+      await route.abort('failed')
+    })
+    await page.getByRole('button', { name: 'Place order' }).click()
+    await expect(page.getByRole('button', { name: 'Place order' })).toBeEnabled()
+    await expect(page).toHaveURL(/\/cart$/)
+
+    // The customer tries again: same cart, same Idempotency-Key, so the server returns the first order.
+    const retry = page.waitForResponse((response) =>
+      response.url().endsWith('/api/v1/orders') && response.request().method() === 'POST')
+    await page.getByRole('button', { name: 'Place order' }).click()
+    const response = await retry
+    expect(response.status()).toBe(200)
+    expect(response.headers()['idempotent-replayed']).toBe('true')
+    await expect(page).toHaveURL(/\/orders\/\d+$/)
+
+    await page.goto('/orders')
+    // Header row + exactly one order.
+    await expect(page.getByRole('table').getByRole('row')).toHaveCount(2)
+  })
+
   test('a new customer registers, orders, and sees it pending', async ({ page }) => {
     const assertNoErrors = failOnBrowserErrors(page)
     await page.goto('/register')

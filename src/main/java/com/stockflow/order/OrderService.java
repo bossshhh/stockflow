@@ -2,10 +2,14 @@ package com.stockflow.order;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,19 +56,22 @@ public class OrderService {
 
     private static final Comparator<OrderItem> LOCK_ORDER = Comparator.comparing(OrderItem::getProductId);
     private static final Sort NEWEST_FIRST = Sort.by(Sort.Direction.DESC, "createdAt", "id");
+    private static final String HASH_ALGORITHM = "SHA-256";
     static final Set<String> SORTABLE_FIELDS = Set.of("id", "createdAt", "totalAmount", "status");
 
     private final OrderRepository orderRepository;
+    private final OrderIdempotencyKeyRepository idempotencyKeys;
     private final ProductService productService;
     private final InventoryService inventoryService;
     private final UserService userService;
     private final OrderProperties orderProperties;
     private final Clock clock;
 
-    public OrderService(OrderRepository orderRepository, ProductService productService,
-                        InventoryService inventoryService, UserService userService,
+    public OrderService(OrderRepository orderRepository, OrderIdempotencyKeyRepository idempotencyKeys,
+                        ProductService productService, InventoryService inventoryService, UserService userService,
                         OrderProperties orderProperties, Clock clock) {
         this.orderRepository = orderRepository;
+        this.idempotencyKeys = idempotencyKeys;
         this.productService = productService;
         this.inventoryService = inventoryService;
         this.userService = userService;
@@ -75,9 +82,55 @@ public class OrderService {
     /** Places an order for the calling customer; name and email are copied from their account. */
     @Transactional
     public OrderResponse create(CurrentUser customer, CreateOrderRequest request) {
+        return place(customer, request, null).order();
+    }
+
+    /**
+     * Like {@link #create}, but safe to retry: with an {@code idempotencyKey}, a repeat of the same request
+     * returns the order that key already placed (as it is now) instead of placing and reserving a second one.
+     *
+     * <p>The key is claimed FIRST, in this transaction, before any stock is touched. A concurrent duplicate
+     * waits on that claim in the database and then replays the result; it never reaches the stock rows.
+     * If placing fails (e.g. out of stock), the claim rolls back with it, so the key can be retried.
+     *
+     * @param idempotencyKey null for a plain, non-repeatable request
+     * @throws IdempotencyKeyReusedException if the key was used for different items
+     */
+    @Transactional
+    public OrderPlacement place(CurrentUser customer, CreateOrderRequest request, String idempotencyKey) {
         // TreeMap: duplicates merged AND iterated in ascending product id (the lock order).
         SortedMap<Long, Integer> quantities = mergeQuantities(request.items());
         requireMergedQuantitiesWithinLimit(quantities);
+        if (idempotencyKey == null) {
+            return new OrderPlacement(placeNew(customer, quantities), false);
+        }
+
+        String requestHash = requestHash(quantities);
+        Instant now = clock.instant();
+        Instant expiredBefore = now.minus(orderProperties.idempotencyKeyTtl());
+        if (!idempotencyKeys.claim(customer.id(), idempotencyKey, requestHash, now, expiredBefore)) {
+            return new OrderPlacement(replay(customer, idempotencyKey, requestHash), true);
+        }
+        OrderResponse placed = placeNew(customer, quantities);
+        idempotencyKeys.attachOrder(customer.id(), idempotencyKey, placed.id());
+        return new OrderPlacement(placed, false);
+    }
+
+    private OrderResponse replay(CurrentUser customer, String idempotencyKey, String requestHash) {
+        // A failed claim means a committed, live claim exists, and a committed claim always has its order.
+        OrderIdempotencyKeyRepository.StoredKey stored = idempotencyKeys.find(customer.id(), idempotencyKey)
+                .filter(key -> key.orderId() != null)
+                .orElseThrow(() -> new IllegalStateException("Idempotency key claimed but no order recorded"));
+        if (!stored.requestHash().equals(requestHash)) {
+            throw new IdempotencyKeyReusedException();
+        }
+        CustomerOrder order = orderRepository.findWithItemsById(stored.orderId())
+                .orElseThrow(() -> new OrderNotFoundException(stored.orderId()));
+        log.info("Replayed order id={} for a repeated idempotency key", order.getId());
+        return OrderResponse.from(order);
+    }
+
+    private OrderResponse placeNew(CurrentUser customer, SortedMap<Long, Integer> quantities) {
         Map<Long, ProductResponse> products = productService.getByIds(quantities.keySet()).stream()
                 .collect(Collectors.toMap(ProductResponse::id, Function.identity()));
 
@@ -237,6 +290,23 @@ public class OrderService {
                         + " is " + quantity + "; at most " + OrderItemRequest.MAX_QUANTITY + " per order");
             }
         });
+    }
+
+    /**
+     * SHA-256 of the merged, sorted items ("3:2,7:1"), so [A x1, A x1] and [A x2] count as the same request,
+     * exactly as the order itself merges them.
+     */
+    static String requestHash(SortedMap<Long, Integer> quantities) {
+        String canonical = quantities.entrySet().stream()
+                .map(entry -> entry.getKey() + ":" + entry.getValue())
+                .collect(Collectors.joining(","));
+        try {
+            MessageDigest digest = MessageDigest.getInstance(HASH_ALGORITHM);
+            return HexFormat.of().formatHex(digest.digest(canonical.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException ex) {
+            // Every Java runtime is required to provide SHA-256.
+            throw new IllegalStateException(ex);
+        }
     }
 
     private static SortedMap<Long, Integer> mergeQuantities(List<OrderItemRequest> items) {

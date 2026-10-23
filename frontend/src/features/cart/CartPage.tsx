@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { api, unwrap } from '@/api/client'
 import { ApiRequestError, errorMessage } from '@/api/errors'
 import { cart, cartTotal, useCart } from '@/cart/cart-store'
+import { checkoutKey } from '@/cart/checkout-key'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { EmptyState } from '@/components/states'
 import { Button } from '@/components/ui/button'
@@ -18,10 +19,16 @@ export function CartPage() {
   const queryClient = useQueryClient()
 
   const placeOrder = useMutation({
-    mutationFn: () => unwrap(api.POST('/api/v1/orders', {
-      body: { items: lines.map((line) => ({ productId: line.productId, quantity: line.quantity })) },
-    })),
+    mutationFn: () => {
+      const items = lines.map((line) => ({ productId: line.productId, quantity: line.quantity }))
+      // Same cart, same key: a retry returns the order already placed instead of placing it twice.
+      return unwrap(api.POST('/api/v1/orders', {
+        params: { header: { 'Idempotency-Key': checkoutKey.keyFor(items) } },
+        body: { items },
+      }))
+    },
     onSuccess: (order) => {
+      checkoutKey.reset()
       cart.clear()
       void queryClient.invalidateQueries({ queryKey: ['orders'] })
       void queryClient.invalidateQueries({ queryKey: ['catalog'] })

@@ -52,6 +52,9 @@ class OrderServiceTest {
     private OrderRepository orderRepository;
 
     @Mock
+    private OrderIdempotencyKeyRepository idempotencyKeys;
+
+    @Mock
     private ProductService productService;
 
     @Mock
@@ -64,8 +67,8 @@ class OrderServiceTest {
 
     @BeforeEach
     void setUp() {
-        orderService = new OrderService(orderRepository, productService, inventoryService, userService,
-                new OrderProperties(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC));
+        orderService = new OrderService(orderRepository, idempotencyKeys, productService, inventoryService, userService,
+                new OrderProperties(Duration.ofMinutes(5), Duration.ofHours(24)), Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test

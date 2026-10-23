@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -94,6 +96,25 @@ class OrderConcurrencyTest extends AbstractIntegrationTest {
         assertThat(reserved(pear)).isEqualTo(threads);
     }
 
+    @Test
+    void sameIdempotencyKeyFromManyThreadsPlacesExactlyOneOrder() throws Exception {
+        long apple = productWithStock("APPLE", "1.00", 100);
+        Set<Long> orderIds = ConcurrentHashMap.newKeySet();
+
+        // A double click or retry storm: the same request with the same key, all at the same instant.
+        List<Outcome> outcomes = runConcurrently(THREADS, i -> () -> {
+            OrderPlacement placement = orderService.place(racer, order(new OrderItemRequest(apple, 3)), "retry-storm-key");
+            orderIds.add(placement.order().id());
+            return placement.replayed() ? Outcome.REPLAYED : Outcome.SUCCEEDED;
+        });
+
+        assertThat(outcomes).hasSize(THREADS).containsOnlyOnce(Outcome.SUCCEEDED);
+        assertThat(outcomes).filteredOn(Outcome.REPLAYED::equals).hasSize(THREADS - 1);
+        assertThat(orderIds).hasSize(1);
+        assertThat(reserved(apple)).isEqualTo(3);
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM customer_orders", Long.class)).isEqualTo(1L);
+    }
+
     private static CreateOrderRequest order(OrderItemRequest... items) {
         return new CreateOrderRequest(List.of(items));
     }
@@ -123,5 +144,5 @@ class OrderConcurrencyTest extends AbstractIntegrationTest {
         }
     }
 
-    private enum Outcome { SUCCEEDED, REJECTED }
+    private enum Outcome { SUCCEEDED, REJECTED, REPLAYED }
 }

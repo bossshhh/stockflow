@@ -899,7 +899,10 @@ export interface operations {
     create_1: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional, 8-64 of A-Z a-z 0-9 - _ (a UUID fits). Repeating a request with the same key returns the order it created (200, header Idempotent-Replayed: true) instead of placing another; the same key with different items gets 422. */
+                "Idempotency-Key"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -909,7 +912,16 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Created */
+            /** @description Replay: the order this Idempotency-Key already placed, as it is now */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Order placed */
             201: {
                 headers: {
                     [name: string]: unknown;

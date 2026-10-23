@@ -75,14 +75,19 @@ export function failOnBrowserErrors(page: Page): () => void {
   return () => expect(problems, 'browser errors').toEqual([])
 }
 
-/** Puts one unit of the e2e product in the cart and places the order. Returns the order id. */
-export async function placeOrder(page: Page): Promise<number> {
+/** Puts one unit of the e2e product in the cart and opens the cart page. */
+export async function addProductAndOpenCart(page: Page): Promise<void> {
   await page.goto('/shop')
   await page.getByLabel('Search products by name').fill(productName())
   const row = page.getByRole('listitem').filter({ hasText: productName() })
   await row.getByRole('button', { name: 'Add to cart' }).click()
   await expect(page.getByText(`Added 1 × ${productName()}`)).toBeVisible()
   await page.getByRole('link', { name: /^Cart,/ }).click()
+}
+
+/** Puts one unit of the e2e product in the cart and places the order. Returns the order id. */
+export async function placeOrder(page: Page): Promise<number> {
+  await addProductAndOpenCart(page)
   await page.getByRole('button', { name: 'Place order' }).click()
   await expect(page).toHaveURL(/\/orders\/\d+$/)
   return Number(page.url().split('/').pop())

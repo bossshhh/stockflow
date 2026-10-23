@@ -2,6 +2,7 @@ package com.stockflow.common.exception;
 
 import java.time.Clock;
 import java.util.List;
+import java.util.stream.Stream;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -11,6 +12,8 @@ import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.transaction.CannotCreateTransactionException;
+import org.springframework.validation.method.ParameterErrors;
+import org.springframework.validation.method.ParameterValidationResult;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -50,16 +53,29 @@ public class GlobalExceptionHandler {
         return build(ErrorCode.VALIDATION_FAILED, "Request validation failed", request, violations);
     }
 
-    /** Constraint annotations on @RequestParam / @PathVariable values, e.g. {@code @Min(0) int threshold}. */
+    /**
+     * Constraint annotations on @RequestParam / @PathVariable / @RequestHeader values, e.g.
+     * {@code @Min(0) int threshold}. Once a handler has such a constraint, Spring also reports its
+     * {@code @Valid @RequestBody} errors here (not as MethodArgumentNotValidException), so body errors keep
+     * their field paths ("items[0].quantity"), exactly as in {@link #handleValidation}.
+     */
     @ExceptionHandler(HandlerMethodValidationException.class)
     public ResponseEntity<ApiError> handleParameterValidation(HandlerMethodValidationException ex,
                                                               HttpServletRequest request) {
         List<ApiError.FieldViolation> violations = ex.getParameterValidationResults().stream()
-                .flatMap(result -> result.getResolvableErrors().stream()
-                        .map(error -> new ApiError.FieldViolation(
-                                result.getMethodParameter().getParameterName(), error.getDefaultMessage())))
+                .flatMap(GlobalExceptionHandler::violations)
                 .toList();
         return build(ErrorCode.VALIDATION_FAILED, "Request validation failed", request, violations);
+    }
+
+    private static Stream<ApiError.FieldViolation> violations(ParameterValidationResult result) {
+        if (result instanceof ParameterErrors bodyErrors) {
+            return bodyErrors.getFieldErrors().stream()
+                    .map(error -> new ApiError.FieldViolation(error.getField(), error.getDefaultMessage()));
+        }
+        return result.getResolvableErrors().stream()
+                .map(error -> new ApiError.FieldViolation(
+                        result.getMethodParameter().getParameterName(), error.getDefaultMessage()));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
