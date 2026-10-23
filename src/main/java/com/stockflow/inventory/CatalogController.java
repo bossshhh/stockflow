@@ -25,7 +25,8 @@ import com.stockflow.inventory.dto.CatalogItemResponse;
 public class CatalogController {
 
     static final String BASE_PATH = "/api/v1/catalog";
-    private static final int MAX_QUERY_LENGTH = 100;
+    /** Longest accepted search text; the inventory search shares it. */
+    static final int MAX_QUERY_LENGTH = 100;
 
     private final CatalogService catalogService;
 

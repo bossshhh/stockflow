@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { Search } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { Link } from 'react-router'
 import { toast } from 'sonner'
@@ -22,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatCount, formatDateTime, orderReference } from '@/lib/format'
+import { useDebouncedValue } from '@/lib/useDebouncedValue'
 import { cn } from '@/lib/utils'
 
 type StockLevel = components['schemas']['InventoryResponse']
@@ -31,22 +33,39 @@ const MAX_ADJUSTMENT = 1_000_000
 
 export function InventoryPage() {
   const canAdjust = isStaff(useCurrentUser())
+  const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
+  const query = useDebouncedValue(search.trim(), 300)
   const [adjusting, setAdjusting] = useState<StockLevel | null>(null)
   const [historyFor, setHistoryFor] = useState<StockLevel | null>(null)
 
   const stock = useQuery({
-    queryKey: ['inventory', 'list', page],
-    queryFn: () => unwrap(api.GET('/api/v1/inventory', { params: { query: { page, size: PAGE_SIZE } } })),
+    queryKey: ['inventory', 'list', { query, page }],
+    queryFn: () => unwrap(api.GET('/api/v1/inventory', {
+      params: { query: { q: query === '' ? undefined : query.slice(0, 100), page, size: PAGE_SIZE } },
+    })),
     placeholderData: keepPreviousData,
   })
 
   return (
     <>
       <PageHeader title="Inventory" description="On hand is what is on the shelf. Reserved is promised to pending orders. Available is what can still be sold." />
+      <div className="relative mb-4 sm:max-w-sm">
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+        <Input
+          aria-label="Search stock by name or SKU"
+          placeholder="Name or SKU"
+          className="pl-9"
+          maxLength={100}
+          value={search}
+          onChange={(event) => { setSearch(event.target.value); setPage(0) }}
+        />
+      </div>
       {stock.isPending ? <InlineSpinner label="Loading stock" />
         : stock.isError ? <ErrorState error={stock.error} onRetry={() => stock.refetch()} />
-        : stock.data.content.length === 0 ? (
+        : stock.data.content.length === 0 && query !== '' ? (
+          <EmptyState title={`Nothing matches "${query}"`}>Try a shorter name or a different SKU.</EmptyState>
+        ) : stock.data.content.length === 0 ? (
           <EmptyState title="No products yet"><Link className="text-primary" to="/products">Add a product</Link>; its stock appears here automatically.</EmptyState>
         ) : (
           <>

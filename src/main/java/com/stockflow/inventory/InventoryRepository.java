@@ -46,6 +46,9 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     /** Case-insensitive name search. The pattern's own % and _ must already be escaped with a backslash. */
     String NAME_MATCHES = "AND lower(p.name) LIKE :namePattern ESCAPE '\\' ";
 
+    String STOCK_LEVEL_MATCHES =
+            "WHERE lower(p.name) LIKE :pattern ESCAPE '\\' OR lower(p.sku) LIKE :pattern ESCAPE '\\' ";
+
     @Modifying(flushAutomatically = true)
     @Query(value = "INSERT INTO inventory (product_id, on_hand, reserved, updated_at) VALUES (:productId, 0, 0, :now)",
             nativeQuery = true)
@@ -86,6 +89,11 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     /** One query for the whole page (product joined in), so no N+1. */
     @Query(value = STOCK_LEVEL_SELECT, countQuery = "SELECT count(i) FROM Inventory i")
     Page<InventoryResponse> findStockLevels(Pageable pageable);
+
+    /** Case-insensitive search in name or SKU; same escaping rules as {@link #NAME_MATCHES}. */
+    @Query(value = STOCK_LEVEL_SELECT + STOCK_LEVEL_MATCHES,
+            countQuery = "SELECT count(i) FROM Inventory i JOIN Product p ON p.id = i.productId " + STOCK_LEVEL_MATCHES)
+    Page<InventoryResponse> findStockLevelsMatching(String pattern, Pageable pageable);
 
     /** Active products whose available stock is at or below {@code threshold}, most urgent first. */
     @Query(value = STOCK_LEVEL_SELECT + """

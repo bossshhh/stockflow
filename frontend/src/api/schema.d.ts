@@ -287,7 +287,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List stock levels of all products, paged */
+        /** List stock levels of all products, paged, optionally searching by name or SKU */
         get: operations["list_1"];
         put?: never;
         post?: never;
@@ -1340,6 +1340,7 @@ export interface operations {
     list_1: {
         parameters: {
             query?: {
+                q?: string;
                 /** @description Zero-based page index (0..N) */
                 page?: number;
                 /** @description The size of the page to be returned */

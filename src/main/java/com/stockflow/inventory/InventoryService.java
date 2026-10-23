@@ -72,9 +72,15 @@ public class InventoryService {
 
     /** Client sort is ignored: stock levels are always listed by product id. */
     @Transactional(readOnly = true)
-    public Page<InventoryResponse> listStockLevels(Pageable pageable) {
-        return inventoryRepository.findStockLevels(
-                PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), STOCK_LEVEL_ORDER));
+    /**
+     * @param query optional case-insensitive substring of the product name or SKU; blank means no filter
+     */
+    public Page<InventoryResponse> listStockLevels(String query, Pageable pageable) {
+        Pageable ordered = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), STOCK_LEVEL_ORDER);
+        if (query == null || query.isBlank()) {
+            return inventoryRepository.findStockLevels(ordered);
+        }
+        return inventoryRepository.findStockLevelsMatching(CatalogService.containsPattern(query), ordered);
     }
 
     /** Manual change to on-hand stock (goods received, damage, stock count corrections). */

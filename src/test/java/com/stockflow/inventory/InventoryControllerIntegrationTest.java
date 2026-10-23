@@ -1,5 +1,6 @@
 package com.stockflow.inventory;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -129,6 +130,28 @@ class InventoryControllerIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.content[1].onHand").value(0));
     }
 
+    @Test
+    void listCanBeSearchedByNameOrSku() throws Exception {
+        createProduct("LAMP-01", "Desk lamp");
+        createProduct("CHAIR-01", "Office chair");
+        createProduct("PROMO-01", "50% off lamp");
+
+        mockMvc.perform(get(INVENTORY).param("q", "LaMp"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.content[*].sku", contains("LAMP-01", "PROMO-01")));
+        mockMvc.perform(get(INVENTORY).param("q", "chair-0"))
+                .andExpect(jsonPath("$.content[*].sku", contains("CHAIR-01")));
+        // "%" is matched literally, not as a wildcard.
+        mockMvc.perform(get(INVENTORY).param("q", "%"))
+                .andExpect(jsonPath("$.content[*].sku", contains("PROMO-01")));
+        mockMvc.perform(get(INVENTORY).param("q", "  "))
+                .andExpect(jsonPath("$.totalElements").value(3));
+        mockMvc.perform(get(INVENTORY).param("q", "x".repeat(101)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
     private ResultActions adjust(long productId, int quantityChange, String reason) throws Exception {
         return mockMvc.perform(post(INVENTORY + "/" + productId + "/adjustments")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -138,9 +161,13 @@ class InventoryControllerIntegrationTest extends AbstractIntegrationTest {
     }
 
     private long createProduct(String sku) throws Exception {
+        return createProduct(sku, "Product " + sku);
+    }
+
+    private long createProduct(String sku, String name) throws Exception {
         String body = mockMvc.perform(post("/api/v1/products").contentType(MediaType.APPLICATION_JSON).content("""
                         {"sku": "%s", "name": "Product %s", "price": 10}
-                        """.formatted(sku, sku)))
+                        """.formatted(sku, name)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return ((Number) JsonPath.read(body, "$.id")).longValue();

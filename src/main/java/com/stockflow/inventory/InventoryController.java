@@ -3,6 +3,7 @@ package com.stockflow.inventory;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -38,11 +39,12 @@ public class InventoryController {
         this.inventoryService = inventoryService;
     }
 
-    @Operation(summary = "List stock levels of all products, paged")
+    @Operation(summary = "List stock levels of all products, paged, optionally searching by name or SKU")
     @GetMapping
     public ResponseEntity<PageResponse<InventoryResponse>> list(
+            @RequestParam(required = false) @Size(max = CatalogController.MAX_QUERY_LENGTH) String q,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(PageResponse.from(inventoryService.listStockLevels(pageable)));
+        return ResponseEntity.ok(PageResponse.from(inventoryService.listStockLevels(q, pageable)));
     }
 
     @Operation(summary = "Report: active products whose available stock is at or below the threshold, lowest first")
