@@ -39,6 +39,8 @@ We build the MVP first and nothing ships until it is solid. A UI comes later.
   accounts). Decided 2026-10-23.
 - Once an order is PACKED it can no longer be cancelled (even inside the 5-minute window). Decided 2026-10-23.
 - Carrier tracking numbers (DHL/UPS) come with the carrier integration, not before.
+- A PENDING order that nobody confirms within the pending expiry (default 48h, `ORDER_PENDING_EXPIRY`) is
+  cancelled by the system and its reservation released; recorded with no actor. Decided 2026-10-23.
 - Creating an order reserves stock. Confirming deducts it from on-hand stock. Cancelling a PENDING
   order releases the reservation.
 - A CONFIRMED order can be cancelled only while `now <= confirmedAt + 5 minutes` (inclusive: at

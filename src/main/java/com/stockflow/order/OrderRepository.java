@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import jakarta.persistence.LockModeType;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -23,6 +24,10 @@ public interface OrderRepository extends JpaRepository<CustomerOrder, Long>, Jpa
      * confirm/cancel calls on the same order run one after the other and the second sees the new status.
      * Items are not fetch-joined here: Postgres cannot lock the nullable side of an outer join.
      */
+    /** Oldest first, served by ix_customer_orders_status_created_at. */
+    @Query("SELECT o.id FROM CustomerOrder o WHERE o.status = :status AND o.createdAt < :createdBefore ORDER BY o.createdAt, o.id")
+    List<Long> findIdsByStatusCreatedBefore(OrderStatus status, Instant createdBefore, Limit limit);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT o FROM CustomerOrder o WHERE o.id = :id")
     Optional<CustomerOrder> findByIdForUpdate(long id);

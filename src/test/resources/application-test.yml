@@ -6,6 +6,9 @@ spring:
       # concurrency tests (milliseconds), or they would fail with CONCURRENT_UPDATE.
       connection-init-sql: SET lock_timeout = '500ms'
 stockflow:
+  # Tests call the jobs directly and move the clock; a background run must never interfere.
+  housekeeping:
+    enabled: false
   security:
     jwt:
       secret: dGVzdC1vbmx5LWp3dC1zZWNyZXQtYXQtbGVhc3QtMzItYnl0ZXMtbG9uZyE=

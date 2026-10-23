@@ -27,6 +27,10 @@ customers order the last unit at the same moment.
   double submit) returns the order already placed instead of placing it twice. The key is claimed with
   one `INSERT ... ON CONFLICT` before any stock is touched, so concurrent duplicates wait on the
   database and replay; 10 threads with one key create exactly one order.
+- **Abandoned orders cannot hold stock forever.** A scheduled job cancels PENDING orders nobody confirmed
+  in time (default 48 h) and releases their stock. It is safe on several instances at once without a
+  distributed lock: each order is re-checked under its row lock, so a racing staff confirm or a second
+  job run can never both act on it.
 - **Full audit trail.** Every stock change writes a movement row (type, delta, resulting levels,
   order id) in the same transaction.
 - **Security.** Short-lived JWT access tokens plus rotating refresh tokens in an HttpOnly cookie with
@@ -34,7 +38,7 @@ customers order the last unit at the same moment.
   access (customer / staff / admin) plus ownership checks: customers only ever see their own orders
   (and get 404, not 403, for others'). Password guessing is rate limited per account and per IP
   (only failed logins count, checked before BCrypt runs, 429 with `Retry-After`).
-- **171 backend + 38 frontend tests, plus 16 browser tests** (unit, integration against real PostgreSQL,
+- **179 backend + 38 frontend tests, plus 16 browser tests** (unit, integration against real PostgreSQL,
   concurrency, security, end to end in Chromium). On every push GitHub Actions also starts the whole
   Docker stack from scratch and runs the browser tests and the API smoke test against it.
 
@@ -154,6 +158,7 @@ Every error has the same shape, with a stable machine-readable `code`:
 | Search returns summaries without items; reports aggregate in SQL | No N+1 queries, no loading thousands of rows into Java |
 | JWT: 15-minute tokens, only `userId` + `role` inside, HS256 secret from the environment | Stateless auth; tokens are readable by anyone, so no personal data in them |
 | Token buckets for failed logins (per email and per IP) and registrations (per IP); client IP from trusted proxies only | Stops password guessing and credential stuffing without slowing real users; a fake `X-Forwarded-For` cannot dodge it |
+| Housekeeping jobs re-check each order under its row lock instead of using a distributed lock (ShedLock) | Correct even when two instances run the job at once; one dependency and one table fewer |
 | `lock_timeout` (3 s) on every DB connection; lock conflicts → 409 `CONCURRENT_UPDATE` + `Retry-After` | One stuck transaction can no longer freeze the API; clients get a clean, retryable error |
 | Flyway owns the schema, `ddl-auto: validate` | Versioned, reviewable schema changes; Hibernate never alters the database |
 
@@ -170,5 +175,6 @@ Every error has the same shape, with a stable machine-readable `code`:
 - [x] Idempotent order placement (`Idempotency-Key`)
 - [x] Lock timeout with clean, retryable 409 errors
 - [x] Login and registration rate limiting
-- [ ] Hardening: token revocation, cleanup jobs
+- [x] Housekeeping: expire stale pending orders, delete expired tokens and idempotency keys
+- [ ] Hardening: token revocation, deploy gate
 - [ ] Load test, observability, audit trail, multiple warehouses, deployment

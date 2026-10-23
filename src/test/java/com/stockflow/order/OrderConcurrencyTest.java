@@ -2,6 +2,7 @@ package com.stockflow.order;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -12,6 +13,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +33,9 @@ class OrderConcurrencyTest extends AbstractIntegrationTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderHousekeeping housekeeping;
 
     private CurrentUser racer;
 
@@ -113,6 +118,61 @@ class OrderConcurrencyTest extends AbstractIntegrationTest {
         assertThat(orderIds).hasSize(1);
         assertThat(reserved(apple)).isEqualTo(3);
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM customer_orders", Long.class)).isEqualTo(1L);
+    }
+
+    @Test
+    void expiryRacingStaffConfirmsDoesExactlyOneOfThemPerOrder() throws Exception {
+        long apple = productWithStock("APPLE", "1.00", 100);
+        List<Long> ids = new ArrayList<>();
+        for (int i = 0; i < THREADS; i++) {
+            ids.add(orderService.create(racer, order(new OrderItemRequest(apple, 2))).id());
+        }
+        clock.advance(Duration.ofHours(48).plusMillis(1));
+
+        // For every stale order, staff confirm it at the very moment the system expires it.
+        List<Outcome> outcomes = runConcurrently(THREADS * 2, i -> () -> {
+            long id = ids.get(i / 2);
+            if (i % 2 == 0) {
+                try {
+                    orderService.confirm(STAFF_ACTOR, id);
+                    return Outcome.SUCCEEDED;
+                } catch (InvalidOrderStateException ex) {
+                    return Outcome.REJECTED;
+                }
+            }
+            return orderService.expireIfStale(id) ? Outcome.SUCCEEDED : Outcome.REJECTED;
+        });
+
+        assertThat(outcomes).filteredOn(Outcome.SUCCEEDED::equals).as("one winner per order").hasSize(THREADS);
+        long confirmed = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM customer_orders WHERE status = 'CONFIRMED'", Long.class);
+        long cancelled = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM customer_orders WHERE status = 'CANCELLED'", Long.class);
+        assertThat(confirmed + cancelled).isEqualTo(THREADS);
+        assertThat(reserved(apple)).isZero();
+        assertThat(onHand(apple)).isEqualTo(100 - 2 * (int) confirmed);
+    }
+
+    @Test
+    void twoHousekeepingRunsAtOnceCancelEachStaleOrderExactlyOnce() throws Exception {
+        long apple = productWithStock("APPLE", "1.00", 100);
+        for (int i = 0; i < 20; i++) {
+            orderService.create(racer, order(new OrderItemRequest(apple, 1)));
+        }
+        clock.advance(Duration.ofHours(48).plusMillis(1));
+        AtomicInteger expired = new AtomicInteger();
+
+        // Two instances of the app running the job at the same moment: no distributed lock needed.
+        runConcurrently(2, i -> () -> {
+            expired.addAndGet(housekeeping.expireStalePendingOrders());
+            return Outcome.SUCCEEDED;
+        });
+
+        assertThat(expired).hasValue(20);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM order_status_events WHERE status = 'CANCELLED'", Long.class)).isEqualTo(20L);
+        assertThat(reserved(apple)).isZero();
+        assertThat(onHand(apple)).isEqualTo(100);
     }
 
     private static CreateOrderRequest order(OrderItemRequest... items) {

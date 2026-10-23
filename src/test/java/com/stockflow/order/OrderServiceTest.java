@@ -68,7 +68,7 @@ class OrderServiceTest {
     @BeforeEach
     void setUp() {
         orderService = new OrderService(orderRepository, idempotencyKeys, productService, inventoryService, userService,
-                new OrderProperties(Duration.ofMinutes(5), Duration.ofHours(24)), Clock.fixed(NOW, ZoneOffset.UTC));
+                new OrderProperties(Duration.ofMinutes(5), Duration.ofHours(24), Duration.ofHours(48)), Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test

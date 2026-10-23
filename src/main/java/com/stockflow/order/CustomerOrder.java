@@ -140,7 +140,17 @@ public class CustomerOrder {
         moveTo(OrderStatus.CANCELLED, now, actorId);
     }
 
-    private void moveTo(OrderStatus next, Instant now, long actorId) {
+    /**
+     * The system cancels a PENDING order that nobody confirmed in time. Recorded without an actor, which the
+     * status history defines as "done by the system".
+     */
+    public void expire(Instant now) {
+        requireStatus(OrderStatus.PENDING, "expire");
+        cancelledAt = now;
+        moveTo(OrderStatus.CANCELLED, now, null);
+    }
+
+    private void moveTo(OrderStatus next, Instant now, Long actorId) {
         status = next;
         updatedAt = now;
         history.add(new OrderStatusEvent(this, next, actorId, now));

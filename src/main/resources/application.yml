@@ -33,6 +33,12 @@ spring:
         max-page-size: 100
   lifecycle:
     timeout-per-shutdown-phase: 30s
+  task:
+    scheduling:
+      shutdown:
+        # On shutdown, let a running housekeeping job finish its current order instead of cutting it off.
+        await-termination: true
+        await-termination-period: 30s
   jackson:
     # Strict request contract (QA findings): reject 1.5 for an integer field instead of silently
     # truncating it to 1, and reject numbers sent as strings ("12.50") instead of converting them.
@@ -56,6 +62,16 @@ stockflow:
     confirmed-cancel-window: ${ORDER_CANCEL_WINDOW:5m}
     # A retried order with the same Idempotency-Key returns the first order while now <= createdAt + this.
     idempotency-key-ttl: ${ORDER_IDEMPOTENCY_KEY_TTL:24h}
+    # A PENDING order nobody confirmed within this is cancelled by the system and its stock released
+    # (business rule, decided 2026-10-23). 48h survives a weekend; a public demo would use e.g. 1h.
+    pending-expiry: ${ORDER_PENDING_EXPIRY:48h}
+  # Scheduled jobs: expire stale orders, delete expired refresh tokens and idempotency keys. Safe to run
+  # on several instances at once (see OrderHousekeeping), so no distributed lock.
+  housekeeping:
+    enabled: ${HOUSEKEEPING_ENABLED:true}
+    initial-delay: PT1M
+    order-expiry-interval: PT5M
+    cleanup-interval: PT1H
   security:
     jwt:
       # Base64 of at least 32 random bytes (HS256). No default on purpose: the app refuses to start without it.

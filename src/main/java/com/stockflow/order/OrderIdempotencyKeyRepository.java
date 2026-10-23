@@ -70,6 +70,12 @@ class OrderIdempotencyKeyRepository {
                 .optional();
     }
 
+    int deleteCreatedBefore(Instant createdBefore) {
+        return jdbc.sql("DELETE FROM order_idempotency_keys WHERE created_at < :createdBefore")
+                .param("createdBefore", utc(createdBefore))
+                .update();
+    }
+
     /** The PostgreSQL driver binds OffsetDateTime to TIMESTAMPTZ; it does not accept Instant. */
     private static OffsetDateTime utc(Instant instant) {
         return instant.atOffset(ZoneOffset.UTC);

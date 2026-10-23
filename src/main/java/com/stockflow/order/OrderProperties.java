@@ -12,8 +12,10 @@ import org.springframework.validation.annotation.Validated;
  *
  * @param confirmedCancelWindow how long after confirmation an order may still be cancelled (inclusive)
  * @param idempotencyKeyTtl     how long an Idempotency-Key returns its order (inclusive); after that it is free again
+ * @param pendingExpiry         a PENDING order not confirmed within this is cancelled by the system (kept at exactly this age)
  */
 @Validated
 @ConfigurationProperties(prefix = "stockflow.orders")
-public record OrderProperties(@NotNull Duration confirmedCancelWindow, @NotNull Duration idempotencyKeyTtl) {
+public record OrderProperties(@NotNull Duration confirmedCancelWindow, @NotNull Duration idempotencyKeyTtl,
+                              @NotNull Duration pendingExpiry) {
 }

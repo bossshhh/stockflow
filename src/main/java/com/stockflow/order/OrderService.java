@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -226,6 +227,45 @@ public class OrderService {
         }
         log.info("Cancelled order id={} previousStatus={}", order.getId(), previous);
         return OrderResponse.from(order);
+    }
+
+    /** PENDING orders past the pending expiry, oldest first: the candidates for {@link #expireIfStale}. */
+    @Transactional(readOnly = true)
+    public List<Long> findStalePendingOrderIds(int max) {
+        Instant createdBefore = clock.instant().minus(orderProperties.pendingExpiry());
+        return orderRepository.findIdsByStatusCreatedBefore(OrderStatus.PENDING, createdBefore, Limit.of(max));
+    }
+
+    /**
+     * System: cancels a PENDING order that nobody confirmed within the pending expiry, and releases its
+     * reservation. Same lock order as confirm and cancel (order row, then stock rows by product id).
+     *
+     * <p>The candidate list may be stale by the time we get here (staff just confirmed it, or another
+     * instance's job already expired it), so the state is checked again AFTER the row lock: whoever locks
+     * first wins, and this returns false instead of acting twice.
+     *
+     * @return true if this call expired the order
+     */
+    @Transactional
+    public boolean expireIfStale(long id) {
+        CustomerOrder order = lockOrThrow(id);
+        Instant now = clock.instant();
+        boolean stale = order.getCreatedAt().plus(orderProperties.pendingExpiry()).isBefore(now);
+        if (order.getStatus() != OrderStatus.PENDING || !stale) {
+            return false;
+        }
+        order.expire(now);
+        for (OrderItem item : itemsInLockOrder(order)) {
+            inventoryService.release(item.getProductId(), item.getQuantity(), order.getId());
+        }
+        log.info("Expired order id={}: not confirmed within {}", order.getId(), orderProperties.pendingExpiry());
+        return true;
+    }
+
+    /** Idempotency keys older than their TTL can no longer replay anything; their rows are dead weight. */
+    @Transactional
+    public int deleteExpiredIdempotencyKeys() {
+        return idempotencyKeys.deleteCreatedBefore(clock.instant().minus(orderProperties.idempotencyKeyTtl()));
     }
 
     /** Warehouse: the confirmed order's items are packed. From here on it can no longer be cancelled. */

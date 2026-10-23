@@ -94,6 +94,15 @@ public class RefreshTokenService {
         return new RotatedRefreshToken(user.get().id(), user.get().role(), next);
     }
 
+    /**
+     * Deletes tokens past their expiry: they can never be used again. Revoked-but-unexpired tokens are kept on
+     * purpose: if a stolen, already rotated token is replayed, that row is what reveals the theft.
+     */
+    @Transactional
+    public int deleteExpired() {
+        return refreshTokenRepository.deleteExpiredBefore(clock.instant());
+    }
+
     /** Logout: revokes the whole family of this token. Unknown or missing tokens are ignored (idempotent). */
     @Transactional
     public void revokeSession(String rawToken) {
