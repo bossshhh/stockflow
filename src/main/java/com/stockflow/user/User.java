@@ -39,6 +39,10 @@ public class User {
     @Column(nullable = false)
     private boolean enabled;
 
+    /** Carried by every access token; bumping it revokes them all (see V11). */
+    @Column(name = "token_version", nullable = false)
+    private int tokenVersion;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -73,6 +77,25 @@ public class User {
 
     public Role getRole() {
         return role;
+    }
+
+    /** Every access token issued so far stops working on its next use. */
+    public void revokeTokens() {
+        tokenVersion++;
+    }
+
+    /** Locks the account and revokes its tokens at once. */
+    public void disable() {
+        enabled = false;
+        revokeTokens();
+    }
+
+    public void enable() {
+        enabled = true;
+    }
+
+    public int getTokenVersion() {
+        return tokenVersion;
     }
 
     public boolean isEnabled() {

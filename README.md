@@ -42,14 +42,15 @@
   the customer's tracking label.
 - **Abandoned orders cannot hold stock forever.** A scheduled job cancels PENDING orders that nobody
   confirmed in time and releases their stock, safely, even with several instances running it at once.
-- **Security in depth.** Short-lived JWTs plus rotating refresh tokens in an HttpOnly cookie with theft
-  detection, BCrypt, role-based access plus ownership checks, rate-limited login and registration, and a
+- **Security in depth.** Short-lived JWTs that can still be revoked instantly (disable an account or "sign
+  out everywhere" and its tokens fail on the next request), rotating refresh tokens in an HttpOnly cookie
+  with theft detection, BCrypt, role-based access plus ownership checks, rate-limited login and registration, and a
   strict Content Security Policy.
 - **Resilient under contention.** A 3-second lock timeout on every database connection turns "wait
   forever" into a clean, retryable `409 CONCURRENT_UPDATE`.
-- **Tested end to end.** 179 backend tests (unit, integration against real PostgreSQL, concurrency,
+- **Tested end to end.** 188 backend tests (unit, integration against real PostgreSQL, concurrency,
   security), 38 frontend unit tests and 16 browser tests. CI starts the whole Docker stack from scratch on
-  every push and runs the browser tests and an 81-check API smoke test against it.
+  every push and runs the browser tests and an 84-check API smoke test against it.
 
 ## Screenshots
 
@@ -201,10 +202,10 @@ cd frontend && npm install && npm run dev   # UI with hot reload on http://local
 
 ```mermaid
 flowchart LR
-    push(["git push"]) --> backend["Backend<br/>./mvnw verify<br/>179 tests, real PostgreSQL"]
+    push(["git push"]) --> backend["Backend<br/>./mvnw verify<br/>188 tests, real PostgreSQL"]
     push --> frontend["Frontend<br/>typecheck, lint,<br/>38 unit tests, build"]
     backend --> e2e
-    frontend --> e2e["End to end<br/>fresh Docker stack,<br/>81-check smoke test,<br/>16 Playwright tests"]
+    frontend --> e2e["End to end<br/>fresh Docker stack,<br/>84-check smoke test,<br/>16 Playwright tests"]
     e2e -->|"main only"| publish["Publish<br/>the exact tested images<br/>to GHCR, by commit SHA"]
 ```
 
@@ -233,13 +234,13 @@ cd frontend && npx playwright install chromium && npm run e2e
 
 | Area | Endpoints | Who |
 |---|---|---|
-| Auth | `POST /api/v1/auth/register`, `/login`, `/refresh`, `/logout`, `GET /api/v1/auth/me` | public / signed in |
+| Auth | `POST /api/v1/auth/register`, `/login`, `/refresh`, `/logout`, `/logout-all` (sign out everywhere), `GET /api/v1/auth/me` | public / signed in |
 | Catalog | `GET /api/v1/catalog?q=`, `GET /api/v1/catalog/{id}` (active products, `inStock` flag, no counts) | public |
 | Products | `GET/POST /api/v1/products`, `GET/PUT/DELETE /api/v1/products/{id}` | read: all; write: staff |
 | Inventory | `GET /api/v1/inventory?q=`, `GET /{productId}`, `POST /{productId}/adjustments`, `GET /{productId}/movements`, `GET /low-stock`, `GET /valuation` | staff (warehouse: read) |
 | Orders | `POST /api/v1/orders` (optional `Idempotency-Key`), `GET /api/v1/orders` (search), `GET /{id}`, `POST /{id}/confirm`, `POST /{id}/cancel`, `GET /summary` | customers: own; staff: all |
 | Fulfilment | `POST /api/v1/orders/{id}/pack`, `/ship`, `/deliver` | warehouse, staff |
-| Admin | `POST /api/v1/admin/users` | admin |
+| Admin | `POST /api/v1/admin/users`, `POST /api/v1/admin/users/{id}/disable`, `/enable` | admin |
 
 The full, always-current contract is in Swagger UI; the frontend's TypeScript client is generated from it.
 Every error has the same shape, with a stable machine-readable `code`:
@@ -262,6 +263,7 @@ Every error has the same shape, with a stable machine-readable `code`:
 | Token buckets for failed logins (per email and per IP) and registrations; client IP from trusted proxies only | Stops password guessing and credential stuffing without slowing real users; a fake `X-Forwarded-For` cannot dodge it |
 | Housekeeping re-checks each order under its row lock instead of a distributed lock | Correct even when two instances run the job at once; one dependency and one table fewer |
 | JWT: 15-minute access tokens with only `userId` + `role`; refresh tokens rotate and are stored as hashes | Stateless auth; a leaked database or a replayed token does not give lasting access |
+| A per-user token version in every JWT, checked on each request through a 10 s cache | Disabling an account or signing out everywhere takes effect at once instead of within 15 minutes; a counter, because JWT issue times only have whole-second precision |
 | CI publishes the exact images the e2e job tested, from a separate job that runs no project code | What gets deployed is what was tested; a compromised dependency cannot push images |
 | Testcontainers instead of H2 | H2 does not reproduce PostgreSQL locking |
 | Flyway owns the schema, `ddl-auto: validate` | Versioned, reviewable schema changes; Hibernate never alters the database |
@@ -278,11 +280,11 @@ Every error has the same shape, with a stable machine-readable `code`:
 - [x] Idempotent order placement, lock timeouts, login and registration rate limiting
 - [x] Housekeeping: expire stale pending orders, delete expired tokens and idempotency keys
 - [x] CI deploy gate: only images that passed every test are published, by commit SHA
+- [x] Instant access-token revocation: disable accounts, sign out everywhere
 
 **Next**
 
 - [ ] Public deployment with HTTPS
-- [ ] Instant access-token revocation
 - [ ] Load test with measured numbers, observability (request ids, metrics, dashboards)
 - [ ] Audit trail for every stock change, account management
 - [ ] Carrier integration (DHL / UPS tracking numbers), multiple warehouses

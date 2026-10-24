@@ -12,6 +12,10 @@ stockflow:
   security:
     jwt:
       secret: dGVzdC1vbmx5LWp3dC1zZWNyZXQtYXQtbGVhc3QtMzItYnl0ZXMtbG9uZyE=
+      # No caching of the token-version lookup in integration tests: tables are truncated with
+      # RESTART IDENTITY between tests, so a cached "user 1" could be another test's user. The cache itself
+      # is covered by TokenVersionValidatorTest.
+      revocation-cache-ttl: 0s
     # Minimum BCrypt cost: hashing strength does not matter in tests, speed does.
     bcrypt-strength: 4
     # Effectively off: every test request comes from 127.0.0.1 and many tests log in or register.

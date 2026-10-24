@@ -39,10 +39,12 @@ public class AuthController {
     private final AuthService authService;
     private final UserService userService;
     private final RefreshTokenCookies refreshTokenCookies;
+    private final SessionRevocationService sessionRevocationService;
     private final Clock clock;
 
     public AuthController(AuthService authService, UserService userService, RefreshTokenCookies refreshTokenCookies,
-                          Clock clock) {
+                          SessionRevocationService sessionRevocationService, Clock clock) {
+        this.sessionRevocationService = sessionRevocationService;
         this.authService = authService;
         this.userService = userService;
         this.refreshTokenCookies = refreshTokenCookies;
@@ -70,6 +72,15 @@ public class AuthController {
             @Parameter(hidden = true) @CookieValue(name = RefreshTokenCookies.COOKIE_NAME, required = false)
             String refreshToken) {
         return withSessionCookie(authService.refresh(refreshToken));
+    }
+
+    @Operation(summary = "Sign out everywhere: ends every session of the signed-in user, on every device, at once")
+    @PostMapping("/logout-all")
+    public ResponseEntity<Void> logoutEverywhere(@AuthenticationPrincipal Jwt jwt) {
+        sessionRevocationService.signOutEverywhere(CurrentUser.from(jwt).id());
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, refreshTokenCookies.clear().toString())
+                .build();
     }
 
     @Operation(summary = "Log out: revokes this session's refresh tokens and deletes the cookie")

@@ -137,14 +137,14 @@ public class SecurityConfig {
 
     /** Checks signature (HS256 only), expiry against the app Clock, and the issuer. */
     @Bean
-    JwtDecoder jwtDecoder(SecurityProperties properties, Clock clock) {
+    JwtDecoder jwtDecoder(SecurityProperties properties, Clock clock, TokenVersionValidator tokenVersions) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(signingKey(properties))
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
         JwtTimestampValidator timestamps = new JwtTimestampValidator();
         timestamps.setClock(clock);
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-                timestamps, new JwtIssuerValidator(properties.jwt().issuer())));
+                timestamps, new JwtIssuerValidator(properties.jwt().issuer()), tokenVersions));
         return decoder;
     }
 

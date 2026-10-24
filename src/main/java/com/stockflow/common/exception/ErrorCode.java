@@ -35,7 +35,8 @@ public enum ErrorCode {
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED),
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED),
     EMAIL_ALREADY_REGISTERED(HttpStatus.CONFLICT),
-    USER_NOT_FOUND(HttpStatus.NOT_FOUND);
+    USER_NOT_FOUND(HttpStatus.NOT_FOUND),
+    CANNOT_DISABLE_OWN_ACCOUNT(HttpStatus.CONFLICT);
 
     private final HttpStatus status;
 

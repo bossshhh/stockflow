@@ -59,7 +59,7 @@ public class AuthService {
         attempt.succeeded();
         AuthenticatedUser user = (AuthenticatedUser) authentication.getPrincipal();
         log.info("Login succeeded userId={}", user.id());
-        return new AuthSession(jwtTokenService.issue(user.id(), user.role()),
+        return new AuthSession(jwtTokenService.issue(user.id(), user.role(), user.tokenVersion()),
                 refreshTokenService.issueForNewLogin(user.id()));
     }
 
@@ -72,7 +72,8 @@ public class AuthService {
     /** New access token plus the next refresh token, in exchange for the current refresh token. */
     public AuthSession refresh(String refreshToken) {
         RotatedRefreshToken rotated = refreshTokenService.rotate(refreshToken);
-        return new AuthSession(jwtTokenService.issue(rotated.userId(), rotated.role()), rotated.next());
+        return new AuthSession(jwtTokenService.issue(rotated.userId(), rotated.role(), rotated.tokenVersion()),
+                rotated.next());
     }
 
     /** Ends this login session. The access token stays valid until it expires (at most its short TTL). */

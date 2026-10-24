@@ -78,6 +78,9 @@ stockflow:
       secret: ${JWT_SECRET}
       ttl: ${JWT_TTL:15m}
       issuer: stockflow
+      # Revocation (disable, sign out everywhere) is checked on every request through a short cache.
+      # This instance sees a revocation at once; other instances within this time.
+      revocation-cache-ttl: ${JWT_REVOCATION_CACHE_TTL:10s}
     refresh:
       ttl: ${REFRESH_TTL:7d}
       # HTTPS-only cookie. Set REFRESH_COOKIE_SECURE=false only for local plain-http setups.

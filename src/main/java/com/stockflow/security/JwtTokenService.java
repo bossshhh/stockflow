@@ -34,7 +34,10 @@ public class JwtTokenService {
         this.clock = clock;
     }
 
-    public TokenResponse issue(long userId, Role role) {
+    /** Claim with the user's token version; see {@link TokenVersionValidator}. */
+    public static final String TOKEN_VERSION_CLAIM = "tv";
+
+    public TokenResponse issue(long userId, Role role, int tokenVersion) {
         Instant now = clock.instant();
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(properties.jwt().issuer())
@@ -42,6 +45,7 @@ public class JwtTokenService {
                 .issuedAt(now)
                 .expiresAt(now.plus(properties.jwt().ttl()))
                 .claim(CurrentUser.ROLES_CLAIM, List.of(role.name()))
+                .claim(TOKEN_VERSION_CLAIM, tokenVersion)
                 .build();
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
         String token = jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();

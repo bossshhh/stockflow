@@ -69,16 +69,32 @@ public class UserService {
     @Transactional(readOnly = true)
     public Optional<UserCredentials> findCredentialsById(long id) {
         return userRepository.findById(id)
-                .map(user -> new UserCredentials(user.getId(), user.getEmail(), user.getPasswordHash(),
-                        user.getRole(), user.isEnabled()));
+                .map(UserService::credentials);
+    }
+
+    /** Disables the account and revokes every access token issued to it. Idempotent. */
+    @Transactional
+    public void disable(long id) {
+        userRepository.findById(id).orElseThrow(() -> new UserNotFoundException(id)).disable();
+    }
+
+    /** Lets the account log in again. Tokens revoked by the disable stay revoked. Idempotent. */
+    @Transactional
+    public void enable(long id) {
+        userRepository.findById(id).orElseThrow(() -> new UserNotFoundException(id)).enable();
+    }
+
+    /** Every access token issued to this account so far stops working on its next use. */
+    @Transactional
+    public void revokeTokens(long id) {
+        userRepository.findById(id).orElseThrow(() -> new UserNotFoundException(id)).revokeTokens();
     }
 
     /** For login only. Empty when no account has this email. */
     @Transactional(readOnly = true)
     public Optional<UserCredentials> findCredentialsByEmail(String email) {
         return userRepository.findByEmail(normalizeEmail(email))
-                .map(user -> new UserCredentials(user.getId(), user.getEmail(), user.getPasswordHash(),
-                        user.getRole(), user.isEnabled()));
+                .map(UserService::credentials);
     }
 
     private UserResponse create(String rawEmail, String password, String fullName, Role role) {
@@ -108,6 +124,11 @@ public class UserService {
             throw new InvalidRequestParameterException(
                     "password must be at most " + UserValidation.PASSWORD_MAX_BYTES + " bytes");
         }
+    }
+
+    private static UserCredentials credentials(User user) {
+        return new UserCredentials(user.getId(), user.getEmail(), user.getPasswordHash(), user.getRole(),
+                user.isEnabled(), user.getTokenVersion());
     }
 
     /** The form emails are stored and compared in; login rate limits are keyed by it too. */

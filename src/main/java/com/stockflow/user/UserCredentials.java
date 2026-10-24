@@ -1,7 +1,8 @@
 package com.stockflow.user;
 
 /** What login needs to verify a password. Only used inside the backend; never serialized to clients. */
-public record UserCredentials(long id, String email, String passwordHash, Role role, boolean enabled) {
+public record UserCredentials(long id, String email, String passwordHash, Role role, boolean enabled,
+                              int tokenVersion) {
 
     @Override
     public String toString() {

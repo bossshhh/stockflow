@@ -26,13 +26,17 @@ public record SecurityProperties(
 
     /**
      * @param secret base64 of at least 32 random bytes (HS256 key)
-     * @param ttl    access token lifetime; short, because a JWT cannot be revoked before it expires
+     * @param ttl                access token lifetime
+     * @param revocationCacheTtl how long the token-version lookup is cached; bounds how late OTHER instances
+     *                           notice a revocation (this instance evicts at once)
      */
-    public record JwtSettings(@NotBlank String secret, @NotNull Duration ttl, @NotBlank String issuer) {
+    public record JwtSettings(@NotBlank String secret, @NotNull Duration ttl, @NotBlank String issuer,
+                              @NotNull Duration revocationCacheTtl) {
 
         @Override
         public String toString() {
-            return "JwtSettings[ttl=" + ttl + ", issuer=" + issuer + ", secret=***]";
+            return "JwtSettings[ttl=" + ttl + ", issuer=" + issuer + ", revocationCacheTtl=" + revocationCacheTtl
+                    + ", secret=***]";
         }
     }
 

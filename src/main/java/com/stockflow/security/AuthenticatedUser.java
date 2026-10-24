@@ -27,6 +27,10 @@ public class AuthenticatedUser implements UserDetails {
         return credentials.role();
     }
 
+    public int tokenVersion() {
+        return credentials.tokenVersion();
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + credentials.role().name()));

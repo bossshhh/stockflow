@@ -91,7 +91,7 @@ public class RefreshTokenService {
 
         current.revoke(now);
         IssuedRefreshToken next = issue(user.get().id(), current.getFamilyId(), now);
-        return new RotatedRefreshToken(user.get().id(), user.get().role(), next);
+        return new RotatedRefreshToken(user.get().id(), user.get().role(), user.get().tokenVersion(), next);
     }
 
     /**
@@ -101,6 +101,12 @@ public class RefreshTokenService {
     @Transactional
     public int deleteExpired() {
         return refreshTokenRepository.deleteExpiredBefore(clock.instant());
+    }
+
+    /** "Sign out everywhere" and account disabling: every refresh token of this user stops working. */
+    @Transactional
+    public int revokeAllForUser(long userId) {
+        return refreshTokenRepository.revokeAllForUser(userId, clock.instant());
     }
 
     /** Logout: revokes the whole family of this token. Unknown or missing tokens are ignored (idempotent). */
