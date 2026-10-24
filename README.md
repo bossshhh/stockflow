@@ -9,6 +9,7 @@
 ![React 19](https://img.shields.io/badge/React-19-20232A?logo=react&logoColor=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ![Staff overview: orders today, confirmation queue, stock by product, low-stock list](.github/assets/staff-overview.png)
 
@@ -21,7 +22,8 @@
 [Testing](#testing) ·
 [API](#api) ·
 [Engineering decisions](#engineering-decisions) ·
-[Roadmap](#roadmap)
+[Roadmap](#roadmap) ·
+[Author](#author)
 
 ---
 
@@ -277,6 +279,18 @@ Every error has the same shape, with a stable machine-readable `code`:
 - [ ] Load test with measured numbers, observability (request ids, metrics, dashboards)
 - [ ] Audit trail for every stock change, account management
 - [ ] Carrier integration (DHL / UPS tracking numbers), multiple warehouses
+
+## Author
+
+**Bashar Soufan**, software engineer
+
+- GitHub: [@bossshhh](https://github.com/bossshhh)
+
+Questions or feedback about the design are welcome: open an issue.
+
+## License
+
+[MIT](LICENSE) © 2026 Bashar Soufan
 
 ---
 
