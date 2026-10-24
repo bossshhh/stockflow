@@ -205,7 +205,12 @@ flowchart LR
     push --> frontend["Frontend<br/>typecheck, lint,<br/>38 unit tests, build"]
     backend --> e2e
     frontend --> e2e["End to end<br/>fresh Docker stack,<br/>81-check smoke test,<br/>16 Playwright tests"]
+    e2e -->|"main only"| publish["Publish<br/>the exact tested images<br/>to GHCR, by commit SHA"]
 ```
+
+Images reach the registry only from `main`, only after every test passed, and only the images the e2e job
+tested (saved by image ID and verified unchanged, never rebuilt). The publish job is the only one with
+permission to write packages, and it runs no project code.
 
 | Level | Tool | What it proves |
 |---|---|---|
@@ -257,6 +262,7 @@ Every error has the same shape, with a stable machine-readable `code`:
 | Token buckets for failed logins (per email and per IP) and registrations; client IP from trusted proxies only | Stops password guessing and credential stuffing without slowing real users; a fake `X-Forwarded-For` cannot dodge it |
 | Housekeeping re-checks each order under its row lock instead of a distributed lock | Correct even when two instances run the job at once; one dependency and one table fewer |
 | JWT: 15-minute access tokens with only `userId` + `role`; refresh tokens rotate and are stored as hashes | Stateless auth; a leaked database or a replayed token does not give lasting access |
+| CI publishes the exact images the e2e job tested, from a separate job that runs no project code | What gets deployed is what was tested; a compromised dependency cannot push images |
 | Testcontainers instead of H2 | H2 does not reproduce PostgreSQL locking |
 | Flyway owns the schema, `ddl-auto: validate` | Versioned, reviewable schema changes; Hibernate never alters the database |
 
@@ -271,11 +277,12 @@ Every error has the same shape, with a stable machine-readable `code`:
 - [x] CI with a full Docker stack, Playwright browser tests and an API smoke test
 - [x] Idempotent order placement, lock timeouts, login and registration rate limiting
 - [x] Housekeeping: expire stale pending orders, delete expired tokens and idempotency keys
+- [x] CI deploy gate: only images that passed every test are published, by commit SHA
 
 **Next**
 
 - [ ] Public deployment with HTTPS
-- [ ] Instant access-token revocation, CI deploy gate (deploy only the images CI tested)
+- [ ] Instant access-token revocation
 - [ ] Load test with measured numbers, observability (request ids, metrics, dashboards)
 - [ ] Audit trail for every stock change, account management
 - [ ] Carrier integration (DHL / UPS tracking numbers), multiple warehouses

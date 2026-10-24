@@ -14,6 +14,9 @@ RUN ./mvnw -B -q package -DskipTests \
 
 # ---- Runtime stage: JRE only, no build tools, no source -----------------------------------------
 FROM eclipse-temurin:21-jre-alpine
+# Links the published image (GHCR) to this repository.
+LABEL org.opencontainers.image.source="https://github.com/bossshhh/stockflow" \
+      org.opencontainers.image.description="StockFlow API (Spring Boot)"
 WORKDIR /app
 
 # Never run as root: if the app is compromised, the attacker does not own the container.
