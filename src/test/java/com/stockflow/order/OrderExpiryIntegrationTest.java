@@ -110,15 +110,15 @@ class OrderExpiryIntegrationTest extends AbstractIntegrationTest {
     }
 
     private long place(int quantity) {
-        return orderService.create(customer, new CreateOrderRequest(List.of(new OrderItemRequest(apple, quantity)))).id();
+        return orderService.create(customer, new CreateOrderRequest(List.of(new OrderItemRequest(apple, quantity)), TestAddresses.ADDRESS)).id();
     }
 
     private void placeWithKey(String key) throws Exception {
         mvcAs(customer(customerId)).perform(post("/api/v1/orders").header(ApiHeaders.IDEMPOTENCY_KEY, key)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
+                        .content(TestAddresses.withAddress("""
                                 {"items": [{"productId": %d, "quantity": 1}]}
-                                """.formatted(apple)))
+                                """.formatted(apple))))
                 .andExpect(status().isCreated());
     }
 }

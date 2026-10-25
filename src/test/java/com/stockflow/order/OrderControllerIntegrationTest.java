@@ -45,10 +45,10 @@ class OrderControllerIntegrationTest extends AbstractIntegrationTest {
         long apple = productWithStock("APPLE", "1.25", 10);
         long pear = productWithStock("PEAR", "2.00", 10);
 
-        createOrder("""
+        createOrder(TestAddresses.withAddress("""
                 {"items": [{"productId": %d, "quantity": 1}, {"productId": %d, "quantity": 3},
                            {"productId": %d, "quantity": 1}]}
-                """.formatted(pear, apple, pear))
+                """.formatted(pear, apple, pear)))
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", endsWith(ORDERS + "/1")))
                 .andExpect(jsonPath("$.status").value("PENDING"))
@@ -213,14 +213,14 @@ class OrderControllerIntegrationTest extends AbstractIntegrationTest {
     }
 
     private static String orderJson(long productId, int quantity) {
-        return """
+        return TestAddresses.withAddress("""
                 {"items": [{"productId": %d, "quantity": %d}]}
-                """.formatted(productId, quantity);
+                """.formatted(productId, quantity));
     }
 
     private static String orderJson(long firstId, int firstQuantity, long secondId, int secondQuantity) {
-        return """
+        return TestAddresses.withAddress("""
                 {"items": [{"productId": %d, "quantity": %d}, {"productId": %d, "quantity": %d}]}
-                """.formatted(firstId, firstQuantity, secondId, secondQuantity);
+                """.formatted(firstId, firstQuantity, secondId, secondQuantity));
     }
 }

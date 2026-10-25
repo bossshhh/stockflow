@@ -11,8 +11,18 @@ interface TrackingLabelProps {
     status: OrderStatus
     confirmedAt?: string | null
     customerName: string
+    /** Absent (null) on orders placed before shipping addresses existed. */
+    shippingAddress?: ShipTo | null
     history: readonly { status: OrderStatus; at: string }[]
   }
+}
+
+interface ShipTo {
+  name: string
+  street: string
+  houseNumber: string
+  postcode: string
+  city: string
 }
 
 /**
@@ -29,6 +39,7 @@ export function TrackingLabel({ order }: TrackingLabelProps) {
         <div>
           <p className="text-sm text-muted-foreground">Order for {order.customerName}</p>
           <p className="font-heading text-4xl font-semibold tracking-tight">{reference}</p>
+          {order.shippingAddress && <ShipToBlock address={order.shippingAddress} />}
         </div>
         <div className="flex flex-col items-end gap-2">
           <Barcode value={reference} />
@@ -42,6 +53,18 @@ export function TrackingLabel({ order }: TrackingLabelProps) {
         ))}
       </ol>
     </section>
+  )
+}
+
+function ShipToBlock({ address }: { address: ShipTo }) {
+  return (
+    <address className="mt-3 text-sm not-italic leading-snug" aria-label="Ship to">
+      <span className="block text-xs uppercase tracking-wide text-muted-foreground">Ship to</span>
+      <span className="block">{address.name}</span>
+      <span className="block">{address.street} {address.houseNumber}</span>
+      <span className="block">{address.postcode} {address.city}</span>
+      <span className="block">Germany</span>
+    </address>
   )
 }
 

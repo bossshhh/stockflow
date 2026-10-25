@@ -3,6 +3,7 @@ import { expect, test, type Browser, type Page } from '@playwright/test'
 import {
   addProductAndOpenCart,
   failOnBrowserErrors,
+  fillShippingAddress,
   newCustomerEmail,
   placeOrder,
   registerCustomer,
@@ -21,6 +22,7 @@ test.describe('order journey', () => {
   test('a lost response on "Place order" does not create a second order when the customer retries', async ({ page, baseURL }) => {
     await signIn(page, await registerCustomer(baseURL ?? ''))
     await addProductAndOpenCart(page)
+    await fillShippingAddress(page)
 
     // The first request reaches the server and the order is placed, but the browser never gets the answer.
     let dropped = false
@@ -63,6 +65,9 @@ test.describe('order journey', () => {
 
     await placeOrder(page)
     await expect(page.getByText('Waiting for the warehouse to confirm')).toBeVisible()
+    const shipTo = page.getByLabel('Ship to', { exact: true })
+    await expect(shipTo).toContainText('Journey Customer')
+    await expect(shipTo).toContainText('10115 Berlin')
     await expect(page.getByRole('link', { name: 'Cart, 0 items' })).toBeVisible()
     assertNoErrors()
   })

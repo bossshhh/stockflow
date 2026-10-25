@@ -160,6 +160,6 @@ class OrderSearchIntegrationTest extends AbstractIntegrationTest {
 
     private long placeOrder(long productId, long customerId, int quantity) {
         return orderService.create(asCustomer(customerId), new CreateOrderRequest(
-                List.of(new OrderItemRequest(productId, quantity)))).id();
+                List.of(new OrderItemRequest(productId, quantity)), TestAddresses.ADDRESS)).id();
     }
 }

@@ -10,6 +10,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.stockflow.order.TestAddresses;
+
 /**
  * Regression tests for the bugs found by the QA session after step 7.0 (boundary-value and input-coercion
  * attacks against the running system). Each test reproduced its bug before the fix.
@@ -35,9 +37,9 @@ class QaRegressionIntegrationTest extends AbstractIntegrationTest {
     void largestAllowedOrderLineIsStoredWithExactTotal() throws Exception {
         long product = productWithStock("MAXPRICE", MAX_PRICE, MAX_QUANTITY);
 
-        order("""
+        order(TestAddresses.withAddress("""
                 {"items": [{"productId": %d, "quantity": %d}]}
-                """.formatted(product, MAX_QUANTITY))
+                """.formatted(product, MAX_QUANTITY)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.totalAmount").value(99_999_999_999_900.00));
     }
@@ -77,9 +79,9 @@ class QaRegressionIntegrationTest extends AbstractIntegrationTest {
     void fractionalQuantityIsRejectedNotTruncated() throws Exception {
         long product = productWithStock("APPLE", "1.00", 10);
 
-        order("""
+        order(TestAddresses.withAddress("""
                 {"items": [{"productId": %d, "quantity": 1.5}]}
-                """.formatted(product))
+                """.formatted(product)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
         assertThat(reserved(product)).isZero();
@@ -99,9 +101,9 @@ class QaRegressionIntegrationTest extends AbstractIntegrationTest {
     void mergedDuplicateLinesMustRespectTheQuantityLimit() throws Exception {
         long product = productWithStock("APPLE", "1.00", 20_000);
 
-        order("""
+        order(TestAddresses.withAddress("""
                 {"items": [{"productId": %d, "quantity": 6000}, {"productId": %d, "quantity": 6000}]}
-                """.formatted(product, product))
+                """.formatted(product, product)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
         assertThat(reserved(product)).isZero();

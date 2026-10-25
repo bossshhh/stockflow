@@ -12,12 +12,17 @@ import jakarta.validation.constraints.Size;
  * can place an order in someone else's name.
  *
  * @param items the same product may appear more than once; its quantities are merged into one line
+ * @param shippingAddress where the parcel goes; stored on the order as it is now
  */
 public record CreateOrderRequest(
 
         @NotEmpty
         @Size(max = CreateOrderRequest.MAX_ITEMS)
-        List<@NotNull @Valid OrderItemRequest> items) {
+        List<@NotNull @Valid OrderItemRequest> items,
+
+        @NotNull
+        @Valid
+        ShippingAddressRequest shippingAddress) {
 
     public static final int MAX_ITEMS = 50;
 }

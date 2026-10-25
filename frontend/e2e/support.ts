@@ -85,9 +85,18 @@ export async function addProductAndOpenCart(page: Page): Promise<void> {
   await page.getByRole('link', { name: /^Cart,/ }).click()
 }
 
+/** Fills the cart page's shipping address (a Berlin address; the name is prefilled from the account). */
+export async function fillShippingAddress(page: Page): Promise<void> {
+  await page.getByLabel('Street').fill('Musterstraße')
+  await page.getByLabel('House number').fill('12a')
+  await page.getByLabel('Postcode').fill('10115')
+  await page.getByLabel('City').fill('Berlin')
+}
+
 /** Puts one unit of the e2e product in the cart and places the order. Returns the order id. */
 export async function placeOrder(page: Page): Promise<number> {
   await addProductAndOpenCart(page)
+  await fillShippingAddress(page)
   await page.getByRole('button', { name: 'Place order' }).click()
   await expect(page).toHaveURL(/\/orders\/\d+$/)
   return Number(page.url().split('/').pop())

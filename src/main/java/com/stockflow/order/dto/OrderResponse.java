@@ -15,6 +15,8 @@ public record OrderResponse(
         Long customerId,
         String customerName,
         String customerEmail,
+        @Schema(nullable = true, description = "Null for orders placed before shipping addresses existed")
+        ShippingAddressResponse shippingAddress,
         OrderStatus status,
         BigDecimal totalAmount,
         List<OrderItemResponse> items,
@@ -29,7 +31,7 @@ public record OrderResponse(
     /** Must be called inside a transaction: it reads the (lazy) items and history. */
     public static OrderResponse from(CustomerOrder order) {
         return new OrderResponse(order.getId(), order.getCustomerId(), order.getCustomerName(),
-                order.getCustomerEmail(), order.getStatus(), order.getTotalAmount(), order.getItems().stream().map(OrderItemResponse::from).toList(),
+                order.getCustomerEmail(), ShippingAddressResponse.from(order.getShippingAddress()), order.getStatus(), order.getTotalAmount(), order.getItems().stream().map(OrderItemResponse::from).toList(),
                 order.getHistory().stream().map(OrderStatusEventResponse::from).toList(),
                 order.getCreatedAt(), order.getUpdatedAt(), order.getConfirmedAt(), order.getCancelledAt());
     }

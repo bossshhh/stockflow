@@ -14,6 +14,8 @@ MGMT="${2:-http://localhost:8081}"                  # "none": not reachable (pro
 API_DOCS="${SMOKE_API_DOCS:-on}"                    # "off": Swagger must NOT be served (production default)
 ALLOWED_ORIGIN="${SMOKE_ALLOWED_ORIGIN:-http://localhost:5173}"   # "none": no other origin is allowed (UI on the same origin)
 API="$BASE/api/v1"
+# Every order ships to a German address (step 8.7a).
+ADDR='{"name":"Smoke Test","street":"Musterstraße","houseNumber":"12a","postcode":"10115","city":"Berlin"}'
 RUN="$(date +%s)"
 PASSWORD="smoke-test-password-$RUN"
 
@@ -173,16 +175,20 @@ request GET "$API/inventory/$P1" "$CUST_A"
 check "customer cannot see stock -> 403" "403" "$STATUS"
 
 echo; echo "6. Order lifecycle"
-request POST "$API/orders" "$CUST_A" "{\"items\":[{\"productId\":$P1,\"quantity\":1},{\"productId\":$P1,\"quantity\":1}]}"
+request POST "$API/orders" "$CUST_A" "{\"shippingAddress\":$ADDR,\"items\":[{\"productId\":$P1,\"quantity\":1},{\"productId\":$P1,\"quantity\":1}]}"
 check "customer A orders 2 (duplicates merged) -> 201 PENDING" "201 PENDING 1 2" "$STATUS $(field .status) $(field '.items | length') $(field '.items[0].quantity')"
 check "name and email come from the account" "$CUST_A_EMAIL" "$(field .customerEmail)"
+check "shipping address stored, country set by the server" "10115 Berlin DEU" \
+  "$(field .shippingAddress.postcode) $(field .shippingAddress.city) $(field .shippingAddress.country)"
 O1="$(field .id)"
 check "stock reserved, not yet deducted" "5/2/3" "$(stock "$P1")"
-request POST "$API/orders" "$CUST_A" "{\"items\":[{\"productId\":$P1,\"quantity\":4}]}"
+request POST "$API/orders" "$CUST_A" "{\"shippingAddress\":$ADDR,\"items\":[{\"productId\":$P1,\"quantity\":4}]}"
 check "ordering more than available -> 409" "INSUFFICIENT_STOCK" "$(field .code)"
 check "customer error names the SKU without counts" "true" "$(echo "$BODY" | jq -r '.message | (contains("KB-") and (contains("on hand") | not))')"
-request POST "$API/orders" "$STAFF" "{\"items\":[{\"productId\":$P1,\"quantity\":1}]}"
+request POST "$API/orders" "$STAFF" "{\"shippingAddress\":$ADDR,\"items\":[{\"productId\":$P1,\"quantity\":1}]}"
 check "staff cannot place orders -> 403" "403" "$STATUS"
+request POST "$API/orders" "$CUST_A" "{\"items\":[{\"productId\":$P1,\"quantity\":1}]}"
+check "order without a shipping address -> 400" "400 VALIDATION_FAILED" "$STATUS $(field .code)"
 request POST "$API/orders/$O1/confirm" "$CUST_A"
 check "customer cannot confirm -> 403" "403" "$STATUS"
 request POST "$API/orders/$O1/confirm" "$STAFF"
@@ -197,7 +203,7 @@ check "customer B cannot cancel A's order -> 404" "404" "$STATUS"
 request POST "$API/orders/$O1/cancel" "$CUST_A"
 check "A cancels confirmed order within 5 min -> CANCELLED" "200 CANCELLED" "$STATUS $(field .status)"
 check "confirmed + cancelled -> restocked" "5/0/5" "$(stock "$P1")"
-request POST "$API/orders" "$CUST_A" "{\"items\":[{\"productId\":$P1,\"quantity\":3}]}"
+request POST "$API/orders" "$CUST_A" "{\"shippingAddress\":$ADDR,\"items\":[{\"productId\":$P1,\"quantity\":3}]}"
 O2="$(field .id)"
 request POST "$API/orders/$O2/cancel" "$CUST_A"
 check "cancel pending order -> reservation released" "200 5/0/5" "$STATUS $(stock "$P1")"
@@ -211,7 +217,7 @@ request POST "$API/inventory/$P2/adjustments" "$STAFF" '{"quantityChange":1,"rea
 RACE_DIR="$(mktemp -d)"
 for i in $(seq 1 10); do
   curl -s -o /dev/null -w "%{http_code}\n" -X POST "$API/orders" -H "Authorization: Bearer $CUST_B" \
-    -H "Content-Type: application/json" -d "{\"items\":[{\"productId\":$P2,\"quantity\":1}]}" > "$RACE_DIR/$i" &
+    -H "Content-Type: application/json" -d "{\"shippingAddress\":$ADDR,\"items\":[{\"productId\":$P2,\"quantity\":1}]}" > "$RACE_DIR/$i" &
 done
 wait
 WINNERS="$(cat "$RACE_DIR"/* | grep -c '^201$')"
@@ -229,7 +235,7 @@ IDEM_DIR="$(mktemp -d)"
 for i in $(seq 1 10); do
   curl -s -o "$IDEM_DIR/body-$i" -w "%{http_code}\n" -X POST "$API/orders" -H "Authorization: Bearer $CUST_B" \
     -H "Idempotency-Key: $IDEM_KEY" -H "Content-Type: application/json" \
-    -d "{\"items\":[{\"productId\":$P3,\"quantity\":2}]}" > "$IDEM_DIR/status-$i" &
+    -d "{\"shippingAddress\":$ADDR,\"items\":[{\"productId\":$P3,\"quantity\":2}]}" > "$IDEM_DIR/status-$i" &
 done
 wait
 CREATED="$(cat "$IDEM_DIR"/status-* | grep -c '^201$')"
@@ -239,7 +245,7 @@ rm -rf "$IDEM_DIR"
 check "1 created, 9 replayed the same order" "1 9 1" "$CREATED $REPLAYED $DISTINCT_IDS"
 check "stock reserved once: 10 on hand, 2 reserved" "10/2/8" "$(stock "$P3")"
 STATUS="$(curl -s -o /tmp/stockflow-smoke-body -w "%{http_code}" -X POST "$API/orders" -H "Authorization: Bearer $CUST_B" \
-  -H "Idempotency-Key: $IDEM_KEY" -H "Content-Type: application/json" -d "{\"items\":[{\"productId\":$P3,\"quantity\":5}]}")"
+  -H "Idempotency-Key: $IDEM_KEY" -H "Content-Type: application/json" -d "{\"shippingAddress\":$ADDR,\"items\":[{\"productId\":$P3,\"quantity\":5}]}")"
 BODY="$(cat /tmp/stockflow-smoke-body)"
 check "same key, different items -> 422" "422 IDEMPOTENCY_KEY_REUSED" "$STATUS $(field .code)"
 
@@ -268,7 +274,7 @@ check "customer cannot see reports -> 403" "403" "$STATUS"
 echo; echo "9. Deactivated products"
 request DELETE "$API/products/$P1" "$STAFF"
 check "staff deactivates product -> 204" "204" "$STATUS"
-request POST "$API/orders" "$CUST_A" "{\"items\":[{\"productId\":$P1,\"quantity\":1}]}"
+request POST "$API/orders" "$CUST_A" "{\"shippingAddress\":$ADDR,\"items\":[{\"productId\":$P1,\"quantity\":1}]}"
 check "deactivated product cannot be ordered" "PRODUCT_UNAVAILABLE" "$(field .code)"
 
 echo; echo "10. CORS"

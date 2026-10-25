@@ -497,12 +497,20 @@ export interface components {
         };
         CreateOrderRequest: {
             items: components["schemas"]["OrderItemRequest"][];
+            shippingAddress: components["schemas"]["ShippingAddressRequest"];
         };
         OrderItemRequest: {
             /** Format: int64 */
             productId: number;
             /** Format: int32 */
             quantity: number;
+        };
+        ShippingAddressRequest: {
+            name: string;
+            street: string;
+            houseNumber: string;
+            postcode: string;
+            city: string;
         };
         OrderItemResponse: {
             /** Format: int64 */
@@ -521,6 +529,8 @@ export interface components {
             customerId?: number | null;
             customerName: string;
             customerEmail: string;
+            /** @description Null for orders placed before shipping addresses existed */
+            shippingAddress?: components["schemas"]["ShippingAddressResponse"];
             /** @enum {string} */
             status: "PENDING" | "CONFIRMED" | "PACKED" | "SHIPPED" | "DELIVERED" | "CANCELLED";
             totalAmount: number;
@@ -540,6 +550,14 @@ export interface components {
             status: "PENDING" | "CONFIRMED" | "PACKED" | "SHIPPED" | "DELIVERED" | "CANCELLED";
             /** Format: date-time */
             at: string;
+        };
+        ShippingAddressResponse: {
+            name: string;
+            street: string;
+            houseNumber: string;
+            postcode: string;
+            city: string;
+            country: string;
         };
         StockAdjustmentRequest: {
             /** Format: int32 */
@@ -951,7 +969,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional, 8-64 of A-Z a-z 0-9 - _ (a UUID fits). Repeating a request with the same key returns the order it created (200, header Idempotent-Replayed: true) instead of placing another; the same key with different items gets 422. */
+                /** @description Optional, 8-64 of A-Z a-z 0-9 - _ (a UUID fits). Repeating a request with the same key returns the order it created (200, header Idempotent-Replayed: true) instead of placing another; the same key with different items or shipping address gets 422. */
                 "Idempotency-Key"?: string;
             };
             path?: never;

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { E2E_PASSWORD, failOnBrowserErrors, productName, registerCustomer, signIn, staffEmail } from './support'
+import { E2E_PASSWORD, failOnBrowserErrors, fillShippingAddress, productName, registerCustomer, signIn, staffEmail } from './support'
 
 test('password guessing: after 5 wrong passwords the login page asks the user to wait', async ({ page, baseURL }) => {
   const email = await registerCustomer(baseURL ?? '')
@@ -96,6 +96,7 @@ test.describe('mobile', () => {
     await page.getByLabel('Search products by name').fill(productName())
     await page.getByRole('listitem').filter({ hasText: productName() }).getByRole('button', { name: 'Add to cart' }).click()
     await page.goto('/cart')
+    await fillShippingAddress(page)
     await page.getByRole('button', { name: 'Place order' }).click()
     await expect(page).toHaveURL(/\/orders\/\d+$/)
     await expect(page.getByRole('region', { name: /Tracking for order/ })).toBeVisible()

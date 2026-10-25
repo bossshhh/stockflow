@@ -33,7 +33,7 @@ class OrderOwnershipIntegrationTest extends AbstractIntegrationTest {
         bob = createCustomer("bob@example.com");
         apple = productWithStock("APPLE", "1.00", 10);
         adasOrder = orderService.create(asCustomer(ada),
-                new CreateOrderRequest(List.of(new OrderItemRequest(apple, 2)))).id();
+                new CreateOrderRequest(List.of(new OrderItemRequest(apple, 2)), TestAddresses.ADDRESS)).id();
     }
 
     @Test

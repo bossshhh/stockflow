@@ -46,7 +46,7 @@ class FulfilmentIntegrationTest extends AbstractIntegrationTest {
         customerId = createCustomer("ada@example.com");
         apple = productWithStock("APPLE", "2.50", 10);
         orderId = orderService.create(asCustomer(customerId),
-                new CreateOrderRequest(List.of(new OrderItemRequest(apple, 4)))).id();
+                new CreateOrderRequest(List.of(new OrderItemRequest(apple, 4)), TestAddresses.ADDRESS)).id();
         orderService.confirm(STAFF_ACTOR, orderId);
     }
 
@@ -99,7 +99,7 @@ class FulfilmentIntegrationTest extends AbstractIntegrationTest {
     @Test
     void warehouseCanFulfilAndReadStockButNothingElse() throws Exception {
         long pending = orderService.create(asCustomer(customerId),
-                new CreateOrderRequest(List.of(new OrderItemRequest(apple, 1)))).id();
+                new CreateOrderRequest(List.of(new OrderItemRequest(apple, 1)), TestAddresses.ADDRESS)).id();
 
         mockMvc.perform(post(ORDERS + "/" + pending + "/confirm").with(warehouse())).andExpect(status().isForbidden());
         mockMvc.perform(post(ORDERS + "/" + pending + "/cancel").with(warehouse())).andExpect(status().isForbidden());

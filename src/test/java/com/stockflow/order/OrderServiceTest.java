@@ -78,7 +78,7 @@ class OrderServiceTest {
         when(orderRepository.saveAndFlush(any(CustomerOrder.class))).thenAnswer(call -> withId(call.getArgument(0)));
 
         OrderResponse response = orderService.create(CUSTOMER, new CreateOrderRequest(List.of(
-                new OrderItemRequest(9L, 1), new OrderItemRequest(3L, 2), new OrderItemRequest(9L, 4))));
+                new OrderItemRequest(9L, 1), new OrderItemRequest(3L, 2), new OrderItemRequest(9L, 4)), TestAddresses.ADDRESS));
 
         assertThat(response.items()).extracting(item -> item.productId()).containsExactly(3L, 9L);
         assertThat(response.items()).extracting(item -> item.quantity()).containsExactly(2, 5);
@@ -94,7 +94,7 @@ class OrderServiceTest {
         when(orderRepository.saveAndFlush(any(CustomerOrder.class))).thenAnswer(call -> withId(call.getArgument(0)));
 
         OrderResponse response = orderService.create(CUSTOMER, new CreateOrderRequest(
-                List.of(new OrderItemRequest(3L, 3))));
+                List.of(new OrderItemRequest(3L, 3)), TestAddresses.ADDRESS));
 
         assertThat(response.items().getFirst().unitPrice()).isEqualByComparingTo("2.50");
         assertThat(response.totalAmount()).isEqualByComparingTo("7.50");
@@ -109,7 +109,7 @@ class OrderServiceTest {
         when(productService.getByIds(Set.of(3L))).thenReturn(List.of(product(3L, false)));
 
         assertThatThrownBy(() -> orderService.create(CUSTOMER, new CreateOrderRequest(
-                List.of(new OrderItemRequest(3L, 1)))))
+                List.of(new OrderItemRequest(3L, 1)), TestAddresses.ADDRESS)))
                 .isInstanceOf(ProductUnavailableException.class);
         verify(orderRepository, never()).saveAndFlush(any());
         verify(inventoryService, never()).reserve(anyLong(), anyInt(), anyLong());
@@ -190,7 +190,7 @@ class OrderServiceTest {
     }
 
     private static CustomerOrder orderWithItem() {
-        CustomerOrder order = new CustomerOrder(CUSTOMER_ID, "Ada", "ada@example.com", NOW);
+        CustomerOrder order = new CustomerOrder(CUSTOMER_ID, "Ada", "ada@example.com", TestAddresses.SHIPPING_ADDRESS, NOW);
         order.addItem(3L, "SKU-3", "Product 3", new BigDecimal("2.50"), 2);
         return withId(order);
     }

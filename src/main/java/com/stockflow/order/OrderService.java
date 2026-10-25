@@ -36,6 +36,7 @@ import com.stockflow.order.dto.OrderItemRequest;
 import com.stockflow.order.dto.OrderListItemResponse;
 import com.stockflow.order.dto.OrderResponse;
 import com.stockflow.order.dto.OrderSummaryReport;
+import com.stockflow.order.dto.ShippingAddressRequest;
 import com.stockflow.product.ProductService;
 import com.stockflow.product.dto.ProductResponse;
 import com.stockflow.user.CurrentUser;
@@ -95,7 +96,7 @@ public class OrderService {
      * If placing fails (e.g. out of stock), the claim rolls back with it, so the key can be retried.
      *
      * @param idempotencyKey null for a plain, non-repeatable request
-     * @throws IdempotencyKeyReusedException if the key was used for different items
+     * @throws IdempotencyKeyReusedException if the key was used for different items or a different shipping address
      */
     @Transactional
     public OrderPlacement place(CurrentUser customer, CreateOrderRequest request, String idempotencyKey) {
@@ -103,16 +104,16 @@ public class OrderService {
         SortedMap<Long, Integer> quantities = mergeQuantities(request.items());
         requireMergedQuantitiesWithinLimit(quantities);
         if (idempotencyKey == null) {
-            return new OrderPlacement(placeNew(customer, quantities), false);
+            return new OrderPlacement(placeNew(customer, quantities, request.shippingAddress()), false);
         }
 
-        String requestHash = requestHash(quantities);
+        String requestHash = requestHash(quantities, request.shippingAddress());
         Instant now = clock.instant();
         Instant expiredBefore = now.minus(orderProperties.idempotencyKeyTtl());
         if (!idempotencyKeys.claim(customer.id(), idempotencyKey, requestHash, now, expiredBefore)) {
             return new OrderPlacement(replay(customer, idempotencyKey, requestHash), true);
         }
-        OrderResponse placed = placeNew(customer, quantities);
+        OrderResponse placed = placeNew(customer, quantities, request.shippingAddress());
         idempotencyKeys.attachOrder(customer.id(), idempotencyKey, placed.id());
         return new OrderPlacement(placed, false);
     }
@@ -131,12 +132,14 @@ public class OrderService {
         return OrderResponse.from(order);
     }
 
-    private OrderResponse placeNew(CurrentUser customer, SortedMap<Long, Integer> quantities) {
+    private OrderResponse placeNew(CurrentUser customer, SortedMap<Long, Integer> quantities,
+                                   ShippingAddressRequest shippingAddress) {
         Map<Long, ProductResponse> products = productService.getByIds(quantities.keySet()).stream()
                 .collect(Collectors.toMap(ProductResponse::id, Function.identity()));
 
         UserResponse account = userService.getById(customer.id());
-        CustomerOrder order = new CustomerOrder(account.id(), account.fullName(), account.email(), clock.instant());
+        CustomerOrder order = new CustomerOrder(account.id(), account.fullName(), account.email(),
+                ShippingAddress.germanAddress(shippingAddress), clock.instant());
         quantities.forEach((productId, quantity) -> {
             ProductResponse product = products.get(productId);
             if (!product.active()) {
@@ -334,12 +337,16 @@ public class OrderService {
 
     /**
      * SHA-256 of the merged, sorted items ("3:2,7:1"), so [A x1, A x1] and [A x2] count as the same request,
-     * exactly as the order itself merges them.
+     * exactly as the order itself merges them, followed by the (already trimmed) address fields, so the same
+     * key with another address is refused. One field per line: unambiguous, because validation rejects line
+     * breaks inside a field.
      */
-    static String requestHash(SortedMap<Long, Integer> quantities) {
-        String canonical = quantities.entrySet().stream()
+    static String requestHash(SortedMap<Long, Integer> quantities, ShippingAddressRequest address) {
+        String items = quantities.entrySet().stream()
                 .map(entry -> entry.getKey() + ":" + entry.getValue())
                 .collect(Collectors.joining(","));
+        String canonical = String.join("\n", items, address.name(), address.street(), address.houseNumber(),
+                address.postcode(), address.city());
         try {
             MessageDigest digest = MessageDigest.getInstance(HASH_ALGORITHM);
             return HexFormat.of().formatHex(digest.digest(canonical.getBytes(StandardCharsets.UTF_8)));

@@ -63,9 +63,9 @@ class OrderIdempotencyIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void itemsAreComparedAfterMergingDuplicates() throws Exception {
-        long id = orderId(placeOrder(KEY, """
+        long id = orderId(placeOrder(KEY, TestAddresses.withAddress("""
                 {"items": [{"productId": %d, "quantity": 1}, {"productId": %d, "quantity": 1}]}
-                """.formatted(apple, apple)));
+                """.formatted(apple, apple))));
 
         placeOrder(KEY, items(apple, 2))
                 .andExpect(status().isOk())
@@ -145,9 +145,9 @@ class OrderIdempotencyIntegrationTest extends AbstractIntegrationTest {
     }
 
     private static String items(long productId, int quantity) {
-        return """
+        return TestAddresses.withAddress("""
                 {"items": [{"productId": %d, "quantity": %d}]}
-                """.formatted(productId, quantity);
+                """.formatted(productId, quantity));
     }
 
     private static long orderId(ResultActions result) throws Exception {

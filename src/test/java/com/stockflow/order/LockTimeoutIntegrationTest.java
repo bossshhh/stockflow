@@ -120,9 +120,9 @@ class LockTimeoutIntegrationTest extends AbstractIntegrationTest {
 
     private MockHttpServletRequestBuilder orderRequest(String idempotencyKey) {
         MockHttpServletRequestBuilder request = post(ORDERS).contentType(MediaType.APPLICATION_JSON)
-                .content("""
+                .content(TestAddresses.withAddress("""
                         {"items": [{"productId": %d, "quantity": 2}]}
-                        """.formatted(apple));
+                        """.formatted(apple)));
         return idempotencyKey == null ? request : request.header(ApiHeaders.IDEMPOTENCY_KEY, idempotencyKey);
     }
 

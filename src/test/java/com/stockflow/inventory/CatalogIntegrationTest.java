@@ -16,6 +16,7 @@ import org.springframework.http.HttpHeaders;
 
 import com.stockflow.AbstractIntegrationTest;
 import com.stockflow.order.OrderService;
+import com.stockflow.order.TestAddresses;
 import com.stockflow.order.dto.CreateOrderRequest;
 import com.stockflow.order.dto.OrderItemRequest;
 
@@ -44,7 +45,7 @@ class CatalogIntegrationTest extends AbstractIntegrationTest {
         jdbcTemplate.update("UPDATE products SET name = '50% OFF_SALE' WHERE sku = 'PROMO'");
         mockMvc.perform(delete("/api/v1/products/" + retired).with(staff()));
         long customer = createCustomer("ada@example.com");
-        orderService.create(asCustomer(customer), new CreateOrderRequest(List.of(new OrderItemRequest(reservedOut, 2))));
+        orderService.create(asCustomer(customer), new CreateOrderRequest(List.of(new OrderItemRequest(reservedOut, 2)), TestAddresses.ADDRESS));
     }
 
     @Test

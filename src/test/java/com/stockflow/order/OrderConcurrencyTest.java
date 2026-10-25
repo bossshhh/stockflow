@@ -176,7 +176,7 @@ class OrderConcurrencyTest extends AbstractIntegrationTest {
     }
 
     private static CreateOrderRequest order(OrderItemRequest... items) {
-        return new CreateOrderRequest(List.of(items));
+        return new CreateOrderRequest(List.of(items), TestAddresses.ADDRESS);
     }
 
     /** Starts all tasks at the same instant (start gate) and collects their results. */

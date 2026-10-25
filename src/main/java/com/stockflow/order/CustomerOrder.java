@@ -10,6 +10,7 @@ import java.util.List;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -52,6 +53,10 @@ public class CustomerOrder {
     @Column(name = "customer_email", nullable = false, length = 254)
     private String customerEmail;
 
+    /** Snapshot taken at checkout. Null only for orders placed before addresses existed (V12). */
+    @Embedded
+    private ShippingAddress shippingAddress;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private OrderStatus status;
@@ -84,11 +89,13 @@ public class CustomerOrder {
         // for JPA
     }
 
-    /** customerName and customerEmail are snapshots of the account at ordering time. */
-    public CustomerOrder(long customerId, String customerName, String customerEmail, Instant now) {
+    /** customerName, customerEmail and shippingAddress are snapshots taken at ordering time. */
+    public CustomerOrder(long customerId, String customerName, String customerEmail, ShippingAddress shippingAddress,
+                         Instant now) {
         this.customerId = customerId;
         this.customerName = customerName;
         this.customerEmail = customerEmail;
+        this.shippingAddress = shippingAddress;
         this.status = OrderStatus.PENDING;
         this.totalAmount = BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
         this.createdAt = now;
@@ -160,6 +167,10 @@ public class CustomerOrder {
         if (status != required) {
             throw new InvalidOrderStateException(id, status, action);
         }
+    }
+
+    public ShippingAddress getShippingAddress() {
+        return shippingAddress;
     }
 
     public Long getId() {

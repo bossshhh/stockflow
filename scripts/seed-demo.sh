@@ -93,17 +93,21 @@ done
 ADA="$(login "$CUSTOMER_EMAIL" "$CUSTOMER_PASSWORD")"
 ALAN="$(login "$CUSTOMER2_EMAIL" "$CUSTOMER2_PASSWORD")"
 
-order() { # token items-json -> order id ("" if refused, e.g. out of stock on a re-run)
-  local status; status="$(post /orders "$1" "{\"items\": $2}")"
+# Shipping addresses (Germany only, see step 8.7a): one per demo customer.
+ADA_ADDRESS='{"name": "Ada Lovelace", "street": "Musterstraße", "houseNumber": "12a", "postcode": "10115", "city": "Berlin"}'
+ALAN_ADDRESS='{"name": "Alan Turing", "street": "Jungfernstieg", "houseNumber": "7", "postcode": "20095", "city": "Hamburg"}'
+
+order() { # token address-json items-json -> order id ("" if refused, e.g. out of stock on a re-run)
+  local status; status="$(post /orders "$1" "{\"shippingAddress\": $2, \"items\": $3}")"
   [[ $status == 201 ]] && jq -r .id "$OUT" || echo ""
 }
 
-pending="$(order "$ADA" "[{\"productId\": $(id_of DSK-STAND-140), \"quantity\": 1}, {\"productId\": $(id_of CHR-ERGO-01), \"quantity\": 1}]")"
-confirmed="$(order "$ALAN" "[{\"productId\": $(id_of MON-27-QHD), \"quantity\": 2}, {\"productId\": $(id_of KBD-MECH-87), \"quantity\": 2}]")"
-cancelled="$(order "$ADA" "[{\"productId\": $(id_of LMP-ARM-02), \"quantity\": 3}]")"
-second_pending="$(order "$ALAN" "[{\"productId\": $(id_of HUB-USBC-7), \"quantity\": 1}]")"
-shipped="$(order "$ADA" "[{\"productId\": $(id_of MSE-VERT-01), \"quantity\": 2}]")"
-delivered="$(order "$ALAN" "[{\"productId\": $(id_of STD-LAPTOP-AL), \"quantity\": 1}, {\"productId\": $(id_of LMP-ARM-02), \"quantity\": 1}]")"
+pending="$(order "$ADA" "$ADA_ADDRESS" "[{\"productId\": $(id_of DSK-STAND-140), \"quantity\": 1}, {\"productId\": $(id_of CHR-ERGO-01), \"quantity\": 1}]")"
+confirmed="$(order "$ALAN" "$ALAN_ADDRESS" "[{\"productId\": $(id_of MON-27-QHD), \"quantity\": 2}, {\"productId\": $(id_of KBD-MECH-87), \"quantity\": 2}]")"
+cancelled="$(order "$ADA" "$ADA_ADDRESS" "[{\"productId\": $(id_of LMP-ARM-02), \"quantity\": 3}]")"
+second_pending="$(order "$ALAN" "$ALAN_ADDRESS" "[{\"productId\": $(id_of HUB-USBC-7), \"quantity\": 1}]")"
+shipped="$(order "$ADA" "$ADA_ADDRESS" "[{\"productId\": $(id_of MSE-VERT-01), \"quantity\": 2}]")"
+delivered="$(order "$ALAN" "$ALAN_ADDRESS" "[{\"productId\": $(id_of STD-LAPTOP-AL), \"quantity\": 1}, {\"productId\": $(id_of LMP-ARM-02), \"quantity\": 1}]")"
 [[ -n "$confirmed" ]] && post "/orders/$confirmed/confirm" "$STAFF" '{}' > /dev/null
 [[ -n "$cancelled" ]] && post "/orders/$cancelled/cancel" "$ADA" '{}' > /dev/null
 for id in $shipped $delivered; do

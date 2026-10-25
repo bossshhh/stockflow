@@ -259,6 +259,7 @@ Every error has the same shape, with a stable machine-readable `code`:
 | `SELECT ... FOR UPDATE` on the order for confirm, cancel and fulfilment | Two simultaneous actions on one order are serialized; the second gets a clean 409 |
 | Idempotency key claimed with `INSERT ... ON CONFLICT` *before* any stock is touched | Concurrent duplicates wait on a tiny index and replay the result, instead of queueing on hot stock rows |
 | Price, SKU and name snapshotted on order items | Later product edits never rewrite past orders |
+| Shipping address snapshotted on the order, validated to DHL's field limits | A parcel goes where it was ordered to; an address accepted at checkout is never rejected by the carrier at ship time |
 | `lock_timeout` (3 s) on every connection; lock conflicts → 409 + `Retry-After` | One stuck transaction can no longer freeze the API |
 | Token buckets for failed logins (per email and per IP) and registrations; client IP from trusted proxies only | Stops password guessing and credential stuffing without slowing real users; a fake `X-Forwarded-For` cannot dodge it |
 | Housekeeping re-checks each order under its row lock instead of a distributed lock | Correct even when two instances run the job at once; one dependency and one table fewer |

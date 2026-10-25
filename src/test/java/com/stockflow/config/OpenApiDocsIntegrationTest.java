@@ -1,5 +1,6 @@
 package com.stockflow.config;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
@@ -41,6 +42,14 @@ class OpenApiDocsIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.paths['/api/v1/orders'].post.responses['201'].content['application/json']")
                         .exists())
                 .andExpect(jsonPath("$.paths['/api/v1/products/{id}'].delete.responses['204']").exists());
+    }
+
+    @Test
+    void idempotencyKeyDocsSayADifferentAddressIsRefusedToo() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/orders'].post.parameters[?(@.name == 'Idempotency-Key')].description",
+                        hasItem(containsString("different items or shipping address gets 422"))));
     }
 
     @Test

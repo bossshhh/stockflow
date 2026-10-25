@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import com.stockflow.AbstractIntegrationTest;
 import com.stockflow.order.OrderService;
+import com.stockflow.order.TestAddresses;
 import com.stockflow.order.dto.CreateOrderRequest;
 import com.stockflow.order.dto.OrderItemRequest;
 
@@ -42,7 +43,7 @@ class InventoryReportsIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(delete("/api/v1/products/" + retired)).andExpect(status().isNoContent());
         // 8 on hand, 6 reserved: only 2 available, so it is low stock even though on-hand looks fine.
         orderService.create(asCustomer(customerId), new CreateOrderRequest(
-                List.of(new OrderItemRequest(reservedDown, 6))));
+                List.of(new OrderItemRequest(reservedDown, 6)), TestAddresses.ADDRESS));
 
         mockMvc.perform(get(INVENTORY + "/low-stock").param("threshold", "5"))
                 .andExpect(status().isOk())
@@ -72,7 +73,7 @@ class InventoryReportsIntegrationTest extends AbstractIntegrationTest {
         long apple = productWithStock("APPLE", "1.50", 10);
         productWithStock("PEAR", "2.25", 4);
         orderService.create(asCustomer(customerId), new CreateOrderRequest(
-                List.of(new OrderItemRequest(apple, 3))));
+                List.of(new OrderItemRequest(apple, 3)), TestAddresses.ADDRESS));
 
         mockMvc.perform(get(INVENTORY + "/valuation"))
                 .andExpect(status().isOk())
@@ -87,7 +88,7 @@ class InventoryReportsIntegrationTest extends AbstractIntegrationTest {
     void movementsCanBeFilteredByType() throws Exception {
         long apple = productWithStock("APPLE", "1.00", 10);
         orderService.create(asCustomer(customerId), new CreateOrderRequest(
-                List.of(new OrderItemRequest(apple, 2))));
+                List.of(new OrderItemRequest(apple, 2)), TestAddresses.ADDRESS));
 
         mockMvc.perform(get(INVENTORY + "/" + apple + "/movements").param("type", "RESERVATION"))
                 .andExpect(status().isOk())

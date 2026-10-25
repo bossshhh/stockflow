@@ -61,7 +61,7 @@ public class OrderController {
             @AuthenticationPrincipal Jwt jwt,
             @Parameter(description = "Optional, 8-64 of A-Z a-z 0-9 - _ (a UUID fits). Repeating a request with "
                     + "the same key returns the order it created (200, header " + ApiHeaders.IDEMPOTENT_REPLAYED
-                    + ": true) instead of placing another; the same key with different items gets 422.")
+                    + ": true) instead of placing another; the same key with different items or shipping address gets 422.")
             @RequestHeader(name = ApiHeaders.IDEMPOTENCY_KEY, required = false)
             @Pattern(regexp = IDEMPOTENCY_KEY_PATTERN, message = "must be 8-64 letters, digits, '-' or '_'")
             String idempotencyKey,
