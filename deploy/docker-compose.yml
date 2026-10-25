@@ -1,0 +1,87 @@
+# The live demo on one server: PostgreSQL, the API and the UI exactly as CI published them (pinned by
+# digest), behind Caddy, which serves HTTPS with a free, automatically renewed certificate.
+# Only Caddy is reachable from outside (ports 80 and 443); the database and the API are not published.
+#
+# On the server, from this folder:   ./deploy.sh <full commit sha>     (see README.md here)
+name: stockflow-live
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: stockflow
+      POSTGRES_USER: stockflow
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    volumes:
+      - stockflow-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stockflow -d stockflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    # ghcr.io/bossshhh/stockflow-api@sha256:... written by deploy.sh: exactly the image CI tested.
+    image: ${API_IMAGE:?run ./deploy.sh <commit sha> first}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # Heap is 75% of this limit (Dockerfile), so the JVM cannot grow into the database's memory.
+    mem_limit: 1g
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://db:5432/stockflow
+      DB_USERNAME: stockflow
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?set ADMIN_EMAIL in .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
+      # The UI is served from the same origin; this only matters for other origins, and none are allowed.
+      CORS_ALLOWED_ORIGINS: https://${SITE_ADDRESS:?set SITE_ADDRESS in .env}
+      # Demo: abandoned orders release their stock after an hour, not 48.
+      ORDER_PENDING_EXPIRY: ${ORDER_PENDING_EXPIRY:-1h}
+      API_DOCS_ENABLED: ${API_DOCS_ENABLED:-false}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+
+  web:
+    image: ${WEB_IMAGE:?run ./deploy.sh <commit sha> first}
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ > /dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  # Terminates HTTPS and forwards to nginx with X-Forwarded-For / X-Forwarded-Proto, which nginx passes on
+  # and Tomcat trusts because they come from this private network (server.forward-headers-strategy).
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  stockflow-db:
+  caddy-data:
+  caddy-config:

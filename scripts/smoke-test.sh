@@ -4,16 +4,26 @@
 # data, so it can be re-run against the same database.
 #
 # Usage:  scripts/smoke-test.sh [base-url] [management-url]
+#         Against the live demo (no management port, Swagger off, its own origin):
+#         SMOKE_API_DOCS=off SMOKE_ALLOWED_ORIGIN=https://<host> scripts/smoke-test.sh https://<host> none
 # Needs:  bash, curl, jq; ADMIN_EMAIL and ADMIN_PASSWORD in .env (or the environment).
 set -uo pipefail
 
 BASE="${1:-http://localhost:8080}"
-MGMT="${2:-http://localhost:8081}"
+MGMT="${2:-http://localhost:8081}"                  # "none": not reachable (production); skip the health check
+API_DOCS="${SMOKE_API_DOCS:-on}"                    # "off": Swagger must NOT be served (production default)
+ALLOWED_ORIGIN="${SMOKE_ALLOWED_ORIGIN:-http://localhost:5173}"   # "none": no other origin is allowed (UI on the same origin)
 API="$BASE/api/v1"
 RUN="$(date +%s)"
 PASSWORD="smoke-test-password-$RUN"
 
-if [[ -f .env ]]; then set -a; . ./.env; set +a; fi
+# Values from .env fill in only what the environment does not already set (the environment wins), so the
+# live demo's credentials are not overridden by a local .env.
+if [[ -f .env ]]; then
+  while IFS='=' read -r key value; do
+    [[ "$key" =~ ^[A-Z_][A-Z0-9_]*$ && -z "${!key:-}" ]] && export "$key=$value"
+  done < .env
+fi
 : "${ADMIN_EMAIL:?ADMIN_EMAIL must be set (in .env or the environment)}"
 : "${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set (in .env or the environment)}"
 
@@ -57,9 +67,19 @@ stock() { # productId -> "onHand/reserved/available"
 echo "StockFlow smoke test against $BASE (run $RUN)"
 
 echo; echo "1. Infrastructure"
-check "health is UP (management port, no token)" "UP" "$(curl -s "$MGMT/actuator/health" | jq -r .status)"
-check "Swagger UI is served" "200" "$(curl -s -o /dev/null -w "%{http_code}" -L "$BASE/swagger-ui.html")"
-check "OpenAPI spec is served" "200" "$(curl -s -o /dev/null -w "%{http_code}" "$BASE/v3/api-docs")"
+if [[ "$MGMT" == "none" ]]; then
+  echo "  - health check skipped (management port not reachable from here, as intended in production)"
+else
+  check "health is UP (management port, no token)" "UP" "$(curl -s "$MGMT/actuator/health" | jq -r .status)"
+fi
+if [[ "$API_DOCS" == "off" ]]; then
+  # Judge by CONTENT: behind the UI's nginx, unknown paths answer 200 with the UI's index.html.
+  check "Swagger UI is NOT served" "false" "$(curl -s "$BASE/swagger-ui.html" | grep -qi 'swagger-ui' && echo true || echo false)"
+  check "OpenAPI spec is NOT served" "false" "$(curl -s "$BASE/v3/api-docs" | grep -q '"openapi"' && echo true || echo false)"
+else
+  check "Swagger UI is served" "200" "$(curl -s -o /dev/null -w "%{http_code}" -L "$BASE/swagger-ui.html")"
+  check "OpenAPI spec is served" "200" "$(curl -s -o /dev/null -w "%{http_code}" "$BASE/v3/api-docs")"
+fi
 
 echo; echo "2. Authentication"
 request GET "$API/products"
@@ -252,9 +272,11 @@ request POST "$API/orders" "$CUST_A" "{\"items\":[{\"productId\":$P1,\"quantity\
 check "deactivated product cannot be ordered" "PRODUCT_UNAVAILABLE" "$(field .code)"
 
 echo; echo "10. CORS"
-check "allowed origin gets CORS header" "http://localhost:5173" \
-  "$(curl -s -o /dev/null -D - -X OPTIONS "$API/products" -H 'Origin: http://localhost:5173' \
+if [[ "$ALLOWED_ORIGIN" != "none" ]]; then
+check "allowed origin gets CORS header" "$ALLOWED_ORIGIN" \
+  "$(curl -s -o /dev/null -D - -X OPTIONS "$API/products" -H "Origin: $ALLOWED_ORIGIN" \
      -H 'Access-Control-Request-Method: GET' | tr -d '\r' | awk -F': ' 'tolower($1)=="access-control-allow-origin"{print $2}')"
+fi
 check "unknown origin is rejected" "403" \
   "$(curl -s -o /dev/null -w "%{http_code}" -X OPTIONS "$API/products" -H 'Origin: https://evil.example' \
      -H 'Access-Control-Request-Method: GET')"
@@ -267,8 +289,10 @@ check "sold-out product shows inStock=false" "false" \
 check "catalog never shows stock counts" "null" "$(echo "$BODY" | jq -r '.content[0].onHand')"
 request GET "$API/catalog/$P1"
 check "deactivated product is hidden from the catalog" "404" "$STATUS"
-check "/ redirects to Swagger" "302 /swagger-ui.html" \
-  "$(curl -s -o /dev/null -w "%{http_code} %{redirect_url}" "$BASE/" | sed "s#$BASE##")"
+if [[ "$API_DOCS" != "off" ]]; then
+  check "/ redirects to Swagger" "302 /swagger-ui.html" \
+    "$(curl -s -o /dev/null -w "%{http_code} %{redirect_url}" "$BASE/" | sed "s#$BASE##")"
+fi
 
 echo; echo "12. Session: refresh cookie, rotation, logout"
 JAR="$(mktemp)"

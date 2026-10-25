@@ -1,0 +1,8 @@
+# SITE_ADDRESS is a hostname (e.g. 203-0-113-7.sslip.io or your own domain): Caddy obtains and renews a
+# Let's Encrypt certificate for it automatically and redirects http to https.
+{$SITE_ADDRESS} {
+	encode zstd gzip
+	# Only the edge knows the connection is HTTPS, so HSTS is set here; nginx sets the other headers.
+	header Strict-Transport-Security "max-age=31536000"
+	reverse_proxy web:8080
+}
