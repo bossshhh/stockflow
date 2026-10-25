@@ -30,7 +30,7 @@ class TokenVersionValidatorTest {
     void setUp() {
         SecurityProperties properties = new SecurityProperties(
                 new SecurityProperties.JwtSettings("secret", Duration.ofMinutes(15), "stockflow", Duration.ofSeconds(10)),
-                null, 4, null, null, null);
+                null, 4, null, null, null, new SecurityProperties.EdgeSettings(""));
         validator = new TokenVersionValidator(userService, properties);
     }
 

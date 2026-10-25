@@ -55,7 +55,8 @@ public class SecurityErrorHandler implements AuthenticationEntryPoint, AccessDen
         write(response, request, ErrorCode.FORBIDDEN, "You do not have permission to perform this action");
     }
 
-    private void write(HttpServletResponse response, HttpServletRequest request, ErrorCode code, String message)
+    /** Also used by {@link EdgeGatewayFilter}, which runs before the security chain. */
+    void write(HttpServletResponse response, HttpServletRequest request, ErrorCode code, String message)
             throws IOException {
         response.setStatus(code.status().value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);

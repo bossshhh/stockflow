@@ -11,8 +11,10 @@ import javax.crypto.spec.SecretKeySpec;
 import org.springframework.boot.actuate.autoconfigure.security.servlet.EndpointRequest;
 import org.springframework.boot.actuate.health.HealthEndpoint;
 import org.springframework.boot.actuate.info.InfoEndpoint;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -112,6 +114,19 @@ public class SecurityConfig {
                         .authenticationEntryPoint(errorHandler)
                         .accessDeniedHandler(errorHandler));
         return http.build();
+    }
+
+    /**
+     * First filter of all: a request without the edge secret never reaches Spring Security, and the rate
+     * limiter sees the visitor's address. Does nothing unless the edge secret is configured.
+     */
+    @Bean
+    FilterRegistrationBean<EdgeGatewayFilter> edgeGatewayFilter(SecurityProperties properties,
+                                                                 SecurityErrorHandler errorHandler) {
+        FilterRegistrationBean<EdgeGatewayFilter> registration =
+                new FilterRegistrationBean<>(new EdgeGatewayFilter(properties, errorHandler));
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        return registration;
     }
 
     @Bean

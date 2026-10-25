@@ -18,3 +18,6 @@ docs/
 .project
 .settings/
 .factorypath
+
+# Vercel CLI project link (created by `vercel link` / `vercel pull`)
+.vercel/

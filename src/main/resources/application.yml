@@ -101,6 +101,10 @@ stockflow:
       registrations-per-ip:
         attempts: ${REGISTRATIONS_PER_IP:10}
         per: 1h
+    # Free-tier deployment only (the API runs as its own Vercel project behind the UI project): the secret the Vercel middleware adds to every
+    # request. Empty = off (local, Compose, CI, VPS). At least 32 characters; set STOCKFLOW_EDGE_SECRET on both Vercel projects.
+    edge:
+      secret: ${STOCKFLOW_EDGE_SECRET:}
     # Optional: creates this ADMIN at startup if no user has the email yet.
     bootstrap-admin:
       email: ${ADMIN_EMAIL:}

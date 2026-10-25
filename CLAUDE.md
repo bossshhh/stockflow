@@ -11,7 +11,7 @@
 - End each step with one challenge question. Once it is answered (or the next step starts), add it to
   `QUESTIONS.md` in the same format: question, answer, "In our code", "Rule when programming".
 - Keep `GUIDE.md` and `ROADMAP.md` up to date with every step.
-- These docs are private and live OUTSIDE the repo, in `~/Desktop/stockflow-docs/`. Never add them to
+- These docs are private and live OUTSIDE the repo, in `~/Documents/Programming/StockFlow/`. Never add them to
   the repo (`docs/` is git-ignored).
 
 ## Project

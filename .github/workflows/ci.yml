@@ -190,6 +190,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      api_digest: ${{ steps.push.outputs.api_digest }}
 
     steps:
       - name: Download the tested images
@@ -212,6 +214,7 @@ jobs:
       # Tagged with the full commit SHA (immutable by convention) and "main" (moves). Deployments use the
       # digest from the summary, which can never point at different content.
       - name: Push, tagged with the commit SHA
+        id: push
         run: |
           owner="$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
           {
@@ -227,8 +230,72 @@ jobs:
             docker push --quiet "$ref:main"
             digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$ref:$GITHUB_SHA")"
             echo "| $name | \`$digest\` |" >> "$GITHUB_STEP_SUMMARY"
+            echo "${name}_digest=$digest" >> "$GITHUB_OUTPUT"
           done
 
       - name: Log out
         if: always()
         run: docker logout ghcr.io
+
+  # Deploys to Vercel what publish just pushed. A separate job so the deploy never holds packages: write or
+  # the registry login, and it runs no project code here either: Vercel builds the UI on its own builders.
+  # Skipped while VERCEL_TOKEN is not set (forks, or a repo without the hosting account).
+  deploy:
+    name: Deploy to Vercel (main only)
+    needs: publish
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      HAS_VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN != '' }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+
+    steps:
+      # The API first, so the new UI never calls endpoints the running API does not have yet.
+      # Vercel runs exactly the image the e2e job tested: the deployed Dockerfile is only a FROM line with the
+      # digest publish pushed (never rebuilt from source, never a moving tag).
+      - name: Deploy the API (tested image, by digest)
+        if: env.HAS_VERCEL_TOKEN == 'true'
+        env:
+          API_DIGEST: ${{ needs.publish.outputs.api_digest }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_API_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          test -n "$API_DIGEST"
+          mkdir api-deploy
+          echo "FROM $API_DIGEST" > api-deploy/Dockerfile
+          echo '{"regions": ["fra1"]}' > api-deploy/vercel.json
+          cd api-deploy
+          npx --yes vercel@63.1.2 deploy --prod --yes --token "$VERCEL_TOKEN"
+
+      # Java starts on the first request (about 20 s), so this also warms the new API up.
+      - name: Wait for the API to be healthy
+        if: env.HAS_VERCEL_TOKEN == 'true'
+        env:
+          API_HEALTH_URL: ${{ secrets.API_HEALTH_URL }}
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl -fsS --max-time 60 --output /dev/null "$API_HEALTH_URL"; then
+              echo "API healthy after attempt $attempt"; exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::API not healthy after 5 minutes"; exit 1
+
+      - name: Check out (UI source for Vercel)
+        if: env.HAS_VERCEL_TOKEN == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Uploads frontend/ and Vercel builds it from this same commit with the locked dependencies (npm ci).
+      # Known gap: that is a second build, not the nginx image the e2e job tested.
+      - name: Deploy the UI
+        if: env.HAS_VERCEL_TOKEN == 'true'
+        working-directory: frontend
+        env:
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_UI_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: npx --yes vercel@63.1.2 deploy --prod --yes --token "$VERCEL_TOKEN"

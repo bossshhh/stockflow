@@ -9,6 +9,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
@@ -22,7 +23,8 @@ public record SecurityProperties(
         @Min(4) @Max(31) int bcryptStrength,
         @Valid @NotNull CorsSettings cors,
         @Valid @NotNull RateLimitSettings rateLimit,
-        BootstrapAdmin bootstrapAdmin) {
+        BootstrapAdmin bootstrapAdmin,
+        @Valid @NotNull EdgeSettings edge) {
 
     /**
      * @param secret base64 of at least 32 random bytes (HS256 key)
@@ -62,6 +64,25 @@ public record SecurityProperties(
 
     /** At most {@code attempts} per {@code per}; used-up attempts come back gradually over that period. */
     public record Limit(@Min(1) int attempts, @NotNull Duration per) {
+    }
+
+    /**
+     * Shared secret between the Vercel middleware and the API (free-tier deployment). Empty means off: local,
+     * Compose, CI and the VPS kit never see the check. When set, every request except the health check must
+     * carry it, and the client address comes from the middleware's header (see {@link EdgeGatewayFilter}).
+     */
+    public record EdgeSettings(
+            @Pattern(regexp = "^$|^.{32,}$", message = "must be empty (edge check off) or at least 32 characters")
+            String secret) {
+
+        public boolean enabled() {
+            return secret != null && !secret.isEmpty();
+        }
+
+        @Override
+        public String toString() {
+            return "EdgeSettings[enabled=" + enabled() + ", secret=***]";
+        }
     }
 
     /** Optional first ADMIN account; ignored when the email or password is blank. */
