@@ -1,6 +1,8 @@
+/// <reference types="node" />
 // Vercel Routing Middleware (free-tier deployment only; local dev uses the Vite proxy, Docker uses nginx).
-// Forwards /api to the Spring Boot API project (a Vercel container) with the visitor's IP and the shared edge secret, so the
-// browser keeps seeing ONE origin (the SameSite=Strict refresh cookie keeps working). Logic: src/edge.
+// Forwards /api to the Spring Boot API project (a Vercel container) with the visitor's IP and the shared
+// edge secret, so the browser keeps seeing ONE origin (the SameSite=Strict refresh cookie keeps working).
+// Logic: src/edge.
 import { ipAddress, rewrite } from '@vercel/functions'
 
 import { edgeForward } from './src/edge/edge-forward.js'

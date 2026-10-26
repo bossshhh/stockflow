@@ -253,6 +253,31 @@ jobs:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
 
     steps:
+      # Fails before deploying anything if a secret is missing or the token cannot see a project, and says
+      # which. Prints only project names and HTTP codes, never the token.
+      - name: Check Vercel access
+        if: env.HAS_VERCEL_TOKEN == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          API_PROJECT: ${{ secrets.VERCEL_API_PROJECT_ID }}
+          UI_PROJECT: ${{ secrets.VERCEL_UI_PROJECT_ID }}
+          API_HEALTH_URL: ${{ secrets.API_HEALTH_URL }}
+        run: |
+          for name in VERCEL_ORG_ID API_PROJECT UI_PROJECT API_HEALTH_URL; do
+            test -n "${!name}" || { echo "::error::secret for $name is empty"; exit 1; }
+          done
+          auth=(-H "Authorization: Bearer $VERCEL_TOKEN")
+          echo "Projects this token can see in the team:"
+          curl -fsS "${auth[@]}" "https://api.vercel.com/v9/projects?teamId=$VERCEL_ORG_ID&limit=50" | jq -r '.projects[].name'
+          failed=0
+          for which in API_PROJECT UI_PROJECT; do
+            code="$(curl -s -o /dev/null -w '%{http_code}' "${auth[@]}" \
+              "https://api.vercel.com/v9/projects/${!which}?teamId=$VERCEL_ORG_ID")"
+            echo "$which lookup: HTTP $code"
+            [[ "$code" == 200 ]] || failed=1
+          done
+          exit "$failed"
+
       # The API first, so the new UI never calls endpoints the running API does not have yet.
       # Vercel runs exactly the image the e2e job tested: the deployed Dockerfile is only a FROM line with the
       # digest publish pushed (never rebuilt from source, never a moving tag).
