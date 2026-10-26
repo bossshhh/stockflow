@@ -270,12 +270,24 @@ jobs:
           echo "Projects this token can see in the team:"
           curl -fsS "${auth[@]}" "https://api.vercel.com/v9/projects?teamId=$VERCEL_ORG_ID&limit=50" | jq -r '.projects[].name'
           failed=0
-          for which in API_PROJECT UI_PROJECT; do
-            code="$(curl -s -o /dev/null -w '%{http_code}' "${auth[@]}" \
-              "https://api.vercel.com/v9/projects/${!which}?teamId=$VERCEL_ORG_ID")"
-            echo "$which lookup: HTTP $code"
-            [[ "$code" == 200 ]] || failed=1
-          done
+          api_code="$(curl -s -o /dev/null -w '%{http_code}' "${auth[@]}" \
+            "https://api.vercel.com/v9/projects/$API_PROJECT?teamId=$VERCEL_ORG_ID")"
+          echo "API_PROJECT lookup (team): HTTP $api_code"
+          [[ "$api_code" == 200 ]] || failed=1
+
+          ui_code="$(curl -s -o /dev/null -w '%{http_code}' "${auth[@]}" \
+            "https://api.vercel.com/v9/projects/$UI_PROJECT?teamId=$VERCEL_ORG_ID")"
+          echo "UI_PROJECT lookup (team): HTTP $ui_code"
+          if [[ "$ui_code" != 200 ]]; then
+            fallback_code="$(curl -s -o /dev/null -w '%{http_code}' "${auth[@]}" \
+              "https://api.vercel.com/v9/projects/$UI_PROJECT")"
+            echo "UI_PROJECT lookup (without teamId): HTTP $fallback_code"
+            if [[ "$fallback_code" == 200 ]]; then
+              echo "UI_DEPLOY_WITHOUT_ORG=true" >> "$GITHUB_ENV"
+            else
+              failed=1
+            fi
+          fi
           exit "$failed"
 
       # The API first, so the new UI never calls endpoints the running API does not have yet.
@@ -323,4 +335,8 @@ jobs:
         env:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_UI_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: npx --yes vercel@63.1.2 deploy --prod --yes --token "$VERCEL_TOKEN"
+        run: |
+          if [[ "${UI_DEPLOY_WITHOUT_ORG:-false}" == "true" ]]; then
+            unset VERCEL_ORG_ID
+          fi
+          npx --yes vercel@63.1.2 deploy --prod --yes --token "$VERCEL_TOKEN"
