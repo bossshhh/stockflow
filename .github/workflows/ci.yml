@@ -270,12 +270,25 @@ jobs:
           echo "Projects this token can see in the team:"
           curl -fsS "${auth[@]}" "https://api.vercel.com/v9/projects?teamId=$VERCEL_ORG_ID&limit=50" | jq -r '.projects[].name'
           failed=0
-          for which in API_PROJECT UI_PROJECT; do
-            code="$(curl -s -o /dev/null -w '%{http_code}' "${auth[@]}" \
-              "https://api.vercel.com/v9/projects/${!which}?teamId=$VERCEL_ORG_ID")"
-            echo "$which lookup: HTTP $code"
-            [[ "$code" == 200 ]] || failed=1
-          done
+          code="$(curl -s -o /dev/null -w '%{http_code}' "${auth[@]}" \
+            "https://api.vercel.com/v9/projects/$API_PROJECT?teamId=$VERCEL_ORG_ID")"
+          echo "API_PROJECT lookup (team): HTTP $code"
+          [[ "$code" == 200 ]] || failed=1
+          ui_code_team="$(curl -s -o /dev/null -w '%{http_code}' "${auth[@]}" \
+            "https://api.vercel.com/v9/projects/$UI_PROJECT?teamId=$VERCEL_ORG_ID")"
+          echo "UI_PROJECT lookup (team): HTTP $ui_code_team"
+          ui_lookup_scope=team
+          if [[ "$ui_code_team" != 200 ]]; then
+            ui_code_no_team="$(curl -s -o /dev/null -w '%{http_code}' "${auth[@]}" \
+              "https://api.vercel.com/v9/projects/$UI_PROJECT")"
+            echo "UI_PROJECT lookup (no teamId): HTTP $ui_code_no_team"
+            if [[ "$ui_code_no_team" == 200 ]]; then
+              ui_lookup_scope=personal
+            else
+              failed=1
+            fi
+          fi
+          echo "UI_VERCEL_SCOPE=$ui_lookup_scope" >> "$GITHUB_ENV"
           exit "$failed"
 
       # The API first, so the new UI never calls endpoints the running API does not have yet.
@@ -323,4 +336,8 @@ jobs:
         env:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_UI_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: npx --yes vercel@63.1.2 deploy --prod --yes --token "$VERCEL_TOKEN"
+        run: |
+          if [[ "${UI_VERCEL_SCOPE:-team}" == personal ]]; then
+            unset VERCEL_ORG_ID
+          fi
+          npx --yes vercel@63.1.2 deploy --prod --yes --token "$VERCEL_TOKEN"
